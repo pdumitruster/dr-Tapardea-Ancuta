@@ -3,7 +3,7 @@
    Strategie: Cache-first cu fallback la rețea
    ============================================ */
 
-const CACHE_NAME = 'dr-Țăpârdea Ancuța-v1.0.0';
+const CACHE_NAME = 'dr-Țăpârdea Ancuța-v1.0.1';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
