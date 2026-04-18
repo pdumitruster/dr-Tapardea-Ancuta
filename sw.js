@@ -1,9 +1,9 @@
 /* ============================================
-   SERVICE WORKER — Cabinet Dr. Țăpârdea Ancuța PWA
+   SERVICE WORKER — Cabinet Dr. Ionescu PWA
    Strategie: Cache-first cu fallback la rețea
    ============================================ */
 
-const CACHE_NAME = 'dr-Țăpârdea Ancuța-v1.0.1';
+const CACHE_NAME = 'dr-ionescu-v1.0.0';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -64,7 +64,7 @@ self.addEventListener('fetch', event => {
 self.addEventListener('push', event => {
   const data = event.data?.json() || {};
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Cabinet Dr. Țăpârdea Ancuța', {
+    self.registration.showNotification(data.title || 'Cabinet Dr. Ionescu', {
       body: data.body || 'Aveți o notificare nouă',
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',

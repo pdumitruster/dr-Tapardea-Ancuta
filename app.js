@@ -1,24 +1,44 @@
 'use strict';
 
 /* ============================================
-   CABINET DR. Țăpârdea Ancuța — Aplicație PWA
-   Date: Supabase (bază de date în cloud)
+   CABINET DR. IONESCU — Aplicație PWA
+   Autentificare: pacient (nume+telefon) / medic (parolă)
+   Date: Supabase
    ============================================ */
 
-// ---- CONFIGURARE SUPABASE ----
-// !! Înlocuiește cele două valori de mai jos din panoul tău Supabase
-//    Settings → API → Project URL și anon/public key
-const SUPABASE_URL = 'https://dneagmuohcxckpozgtku.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRuZWFnbXVvaGN4Y2twb3pndGt1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MTc4NTcsImV4cCI6MjA5MjA5Mzg1N30.BY7GT7LsKvE1mmaPMXBUHyJPtGCuyLlQ9nYN_kNzRAI';
+const SUPABASE_URL   = 'https://dneagmuohcxckpozgtku.supabase.co';
+const SUPABASE_KEY   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRuZWFnbXVvaGN4Y2twb3pndGt1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MTc4NTcsImV4cCI6MjA5MjA5Mzg1N30.BY7GT7LsKvE1mmaPMXBUHyJPtGCuyLlQ9nYN_kNzRAI';
+const DOCTOR_PASSWORD = 'ionescu2026'; // ← schimbă cu o parolă reală!
 
-// Client Supabase (încărcat din CDN în index.html)
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ============================================
-// STRAT DATE — toate operațiunile cu Supabase
+// STRAT DATE — Supabase
 // ============================================
 const DB = {
+
+  // ---- PATIENTS ----
+  async getPatient(phone) {
+    const { data, error } = await sb
+      .from('patients')
+      .select('*')
+      .eq('phone', phone.trim())
+      .single();
+    if (error) return null;
+    return data;
+  },
+
+  async upsertPatient({ name, phone }) {
+    // Creează pacientul dacă nu există, altfel îl returnează
+    const { data, error } = await sb
+      .from('patients')
+      .upsert({ name: name.trim(), phone: phone.trim() }, { onConflict: 'phone' })
+      .select()
+      .single();
+    if (error) { console.error('upsert patient:', error); return null; }
+    return data;
+  },
 
   // ---- APPOINTMENTS ----
   async getAppointments() {
@@ -31,10 +51,10 @@ const DB = {
     return data;
   },
 
-  async insertAppointment({ date, time, patient, type }) {
+  async insertAppointment({ date, time, patient_name, patient_phone, type }) {
     const { error } = await sb
       .from('appointments')
-      .insert({ date, time, patient, type, status: 'confirmed' });
+      .insert({ date, time, patient_name, patient_phone, type, status: 'confirmed' });
     if (error) console.error('insert appointment:', error);
   },
 
@@ -43,15 +63,15 @@ const DB = {
     const { data, error } = await sb
       .from('symptoms')
       .select('*')
-      .order('date', { ascending: false });
+      .order('created_at', { ascending: false });
     if (error) { console.error('symptoms:', error); return []; }
     return data;
   },
 
-  async insertSymptom({ patient, date, text }) {
+  async insertSymptom({ patient_name, patient_phone, text }) {
     const { error } = await sb
       .from('symptoms')
-      .insert({ patient, date, text, status: 'new' });
+      .insert({ patient_name, patient_phone, text, status: 'new' });
     if (error) console.error('insert symptom:', error);
   },
 
@@ -68,15 +88,15 @@ const DB = {
     const { data, error } = await sb
       .from('prescriptions')
       .select('*')
-      .order('date', { ascending: false });
+      .order('created_at', { ascending: false });
     if (error) { console.error('prescriptions:', error); return []; }
     return data;
   },
 
-  async insertPrescription({ patient, date, med }) {
+  async insertPrescription({ patient_name, patient_phone, med }) {
     const { error } = await sb
       .from('prescriptions')
-      .insert({ patient, date, med, status: 'pending' });
+      .insert({ patient_name, patient_phone, med, status: 'pending' });
     if (error) console.error('insert prescription:', error);
   },
 
@@ -90,7 +110,6 @@ const DB = {
 
   // ---- NOTIFICATIONS ----
   async getNotifications(target) {
-    // target = 'doctor' sau 'patient'
     const { data, error } = await sb
       .from('notifications')
       .select('*')
@@ -118,8 +137,7 @@ const DB = {
 };
 
 // ---- CONSTANTE ----
-const TODAY    = new Date().toISOString().split('T')[0]; // data reală curentă
-const PAT_NAME = 'Maria Popescu'; // va fi înlocuit cu autentificarea reală
+const TODAY    = new Date().toISOString().split('T')[0];
 const MONTHS   = ['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie'];
 const DAYS_S   = ['Lu','Ma','Mi','Jo','Vi','Sâ','Du'];
 const DAYS_L   = ['Luni','Marți','Miercuri','Joi','Vineri','Sâmbătă','Duminică'];
@@ -128,14 +146,16 @@ const SLOTS    = ['08:00','08:20','08:40','09:00','09:20','09:40','10:00','10:20
 
 // ---- STATE ----
 const S = {
-  role: null,
-  tab:  'calendar',
-  my:   { y: new Date().getFullYear(), m: new Date().getMonth() },
-  sd:   null,   // data selectată în calendar
-  bs:   null,   // slotul de oră selectat
-  msg:  null,   // mesaj succes temporar
-
-  // Cache local — populat de render() la fiecare apel
+  role:    null,
+  tab:     'calendar',
+  my:      { y: new Date().getFullYear(), m: new Date().getMonth() },
+  sd:      null,
+  bs:      null,
+  msg:     null,
+  err:     null,
+  loading: false,
+  // Pacientul logat curent
+  patient: null,  // { name, phone }
   cache: {
     appointments:  [],
     symptoms:      [],
@@ -157,20 +177,19 @@ function fmtDate(s) {
   return `${DAYS_L[w]}, ${d} ${MONTHS_S[m - 1]}`;
 }
 
-function fmtTime(isoString) {
-  // Convertește câmpul created_at din Supabase în text lizibil
-  if (!isoString) return '';
-  const d = new Date(isoString);
-  const today     = new Date();
-  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
-  const hm = d.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' });
-  if (d.toDateString() === today.toDateString())     return `Azi, ${hm}`;
-  if (d.toDateString() === yesterday.toDateString()) return `Ieri, ${hm}`;
+function fmtTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const now  = new Date();
+  const yest = new Date(now); yest.setDate(now.getDate() - 1);
+  const hm   = d.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === now.toDateString())  return `Azi, ${hm}`;
+  if (d.toDateString() === yest.toDateString()) return `Ieri, ${hm}`;
   return `${d.getDate()} ${MONTHS_S[d.getMonth()]}, ${hm}`;
 }
 
 function initials(name) {
-  return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  return (name || '?').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 }
 
 function badge(status) {
@@ -192,7 +211,7 @@ function showLoading() {
   if (main) main.innerHTML = '<div class="empty-state" style="padding:3rem">Se încarcă...</div>';
 }
 
-// ---- CALENDAR COMPONENT ----
+// ---- CALENDAR ----
 function calNav() {
   const { y, m } = S.my;
   return `
@@ -209,12 +228,12 @@ function calGrid(isDoctor) {
   let fd = new Date(y, m, 1).getDay();
   fd = fd === 0 ? 6 : fd - 1;
 
-  // Citim din cache — deja fetch-uit de render()
   const hasAppt = new Set(
     S.cache.appointments
       .filter(a => {
         const [ay, am] = a.date.split('-').map(Number);
-        return ay === y && am === m + 1 && (isDoctor || a.patient === PAT_NAME);
+        return ay === y && am === m + 1 &&
+          (isDoctor || a.patient_phone === S.patient?.phone);
       })
       .map(a => a.date)
   );
@@ -243,11 +262,110 @@ function calGrid(isDoctor) {
 }
 
 // ============================================
-// DOCTOR VIEWS — citesc din S.cache
+// LOGIN PAGE — cu 3 stări: alege rol / login medic / login pacient
+// ============================================
+function renderLogin() {
+  return `
+    <div class="login-page">
+      <div style="text-align:center">
+        <div class="login-logo">
+          <svg width="36" height="36" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" viewBox="0 0 24 24">
+            <rect x="3" y="4" width="18" height="18" rx="2"/>
+            <path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4"/>
+          </svg>
+        </div>
+        <h1 style="font-size:24px;font-weight:700;margin-top:16px;margin-bottom:6px">Cabinet Dr. Țăpârdea</h1>
+        <p style="font-size:14px;color:var(--text-muted)">Medicină de familie · Craiova</p>
+      </div>
+
+      <div class="role-grid">
+        <div class="role-card" data-action="show-doctor-login">
+          <div class="role-icon" style="background:var(--success-bg)">
+            <svg width="26" height="26" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" viewBox="0 0 24 24">
+              <path d="M9 12h6m-3-3v6"/><circle cx="12" cy="12" r="10"/>
+            </svg>
+          </div>
+          <div style="font-size:15px;font-weight:700;margin-bottom:4px">Sunt medic</div>
+          <div style="font-size:12px;color:var(--text-muted)">Gestionează programările</div>
+        </div>
+        <div class="role-card" data-action="show-patient-login">
+          <div class="role-icon" style="background:var(--info-bg)">
+            <svg width="26" height="26" fill="none" stroke="var(--info-text)" stroke-width="1.5" stroke-linecap="round" viewBox="0 0 24 24">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+            </svg>
+          </div>
+          <div style="font-size:15px;font-weight:700;margin-bottom:4px">Sunt pacient</div>
+          <div style="font-size:12px;color:var(--text-muted)">Programează consultație</div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderDoctorLogin() {
+  return `
+    <div class="login-page">
+      <div style="text-align:center">
+        <div class="login-logo">
+          <svg width="36" height="36" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" viewBox="0 0 24 24">
+            <path d="M9 12h6m-3-3v6"/><circle cx="12" cy="12" r="10"/>
+          </svg>
+        </div>
+        <h1 style="font-size:20px;font-weight:700;margin-top:14px;margin-bottom:4px">Autentificare medic</h1>
+        <p style="font-size:13px;color:var(--text-muted)">Dr. Țăpârdea Ancuța</p>
+      </div>
+
+      ${S.err ? `<div style="background:var(--danger-bg);color:var(--danger-text);border-radius:var(--radius-md);padding:11px 14px;font-size:14px">${S.err}</div>` : ''}
+
+      <div style="width:100%;max-width:340px">
+        <div class="form-group">
+          <label class="form-label">Parolă</label>
+          <input type="password" id="doc-pass" placeholder="Introduceți parola" autocomplete="current-password">
+        </div>
+        <button class="btn-primary" data-action="login-doctor">Intră în cont</button>
+        <button class="btn-ghost" data-action="back-to-roles" style="display:block;text-align:center;margin-top:14px">← Înapoi</button>
+      </div>
+    </div>`;
+}
+
+function renderPatientLogin() {
+  return `
+    <div class="login-page">
+      <div style="text-align:center">
+        <div class="login-logo" style="background:var(--info-bg)">
+          <svg width="36" height="36" fill="none" stroke="var(--info-text)" stroke-width="1.5" stroke-linecap="round" viewBox="0 0 24 24">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+          </svg>
+        </div>
+        <h1 style="font-size:20px;font-weight:700;margin-top:14px;margin-bottom:4px">Cont pacient</h1>
+        <p style="font-size:13px;color:var(--text-muted)">Introduceți datele dvs. pentru a continua</p>
+      </div>
+
+      ${S.err ? `<div style="background:var(--danger-bg);color:var(--danger-text);border-radius:var(--radius-md);padding:11px 14px;font-size:14px">${S.err}</div>` : ''}
+
+      <div style="width:100%;max-width:340px">
+        <div class="form-group">
+          <label class="form-label">Nume complet</label>
+          <input type="text" id="pat-name" placeholder="Ex: Ion Popescu" autocomplete="name">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Număr de telefon</label>
+          <input type="tel" id="pat-phone" placeholder="Ex: 0712 345 678" autocomplete="tel">
+        </div>
+        <div style="background:var(--bg-surface);border-radius:var(--radius-md);padding:11px 13px;font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.5">
+          Dacă este prima vizită, contul se creează automat cu aceste date.
+        </div>
+        <button class="btn-primary" data-action="login-patient">Continuă</button>
+        <button class="btn-ghost" data-action="back-to-roles" style="display:block;text-align:center;margin-top:14px">← Înapoi</button>
+      </div>
+    </div>`;
+}
+
+// ============================================
+// DOCTOR VIEWS
 // ============================================
 function viewDoctorCalendar() {
-  const appts   = S.cache.appointments;
-  const month   = `${S.my.y}-${String(S.my.m + 1).padStart(2,'0')}`;
+  const appts    = S.cache.appointments;
+  const month    = `${S.my.y}-${String(S.my.m + 1).padStart(2,'0')}`;
   const confirmed = appts.filter(a => a.date.startsWith(month) && a.status === 'confirmed').length;
   const todayCnt  = appts.filter(a => a.date === TODAY).length;
   const future    = appts.filter(a => a.date > TODAY && a.status === 'confirmed').length;
@@ -263,7 +381,10 @@ function viewDoctorCalendar() {
         ? `<div class="card">${dayAppts.map(a => `
             <div class="appt-item">
               <span class="appt-time">${a.time}</span>
-              <div style="flex:1"><div class="appt-name">${a.patient}</div><div class="appt-type">${a.type}</div></div>
+              <div style="flex:1">
+                <div class="appt-name">${a.patient_name}</div>
+                <div class="appt-type">${a.type} · ${a.patient_phone}</div>
+              </div>
               ${badge(a.status)}
             </div>`).join('')}</div>`
         : '<div class="empty-state">Nicio programare în această zi</div>'
@@ -294,7 +415,10 @@ function viewDoctorAppts() {
         <div style="font-size:11px;color:var(--text-muted)">${fmtDate(a.date)}</div>
         <div class="appt-time">${a.time}</div>
       </div>
-      <div style="flex:1"><div class="appt-name">${a.patient}</div><div class="appt-type">${a.type}</div></div>
+      <div style="flex:1">
+        <div class="appt-name">${a.patient_name}</div>
+        <div class="appt-type">${a.type} · ${a.patient_phone}</div>
+      </div>
       ${badge(a.status)}
     </div>`;
 
@@ -319,10 +443,10 @@ function viewDoctorPatients() {
       ${syms.length ? syms.map(s => `
         <div class="card">
           <div class="card-row" style="margin-bottom:10px">
-            <div class="avatar" style="background:var(--info-bg);color:var(--info-text)">${initials(s.patient)}</div>
+            <div class="avatar" style="background:var(--info-bg);color:var(--info-text)">${initials(s.patient_name)}</div>
             <div style="flex:1">
-              <div style="font-size:14px;font-weight:600">${s.patient}</div>
-              <div style="font-size:12px;color:var(--text-muted)">${s.date}</div>
+              <div style="font-size:14px;font-weight:600">${s.patient_name}</div>
+              <div style="font-size:12px;color:var(--text-muted)">${s.patient_phone} · ${fmtTime(s.created_at)}</div>
             </div>
             ${badge(s.status)}
           </div>
@@ -339,8 +463,8 @@ function viewDoctorPatients() {
         <div class="card">
           <div class="card-row" style="margin-bottom:8px">
             <div style="flex:1">
-              <div style="font-size:14px;font-weight:600">${r.patient}</div>
-              <div style="font-size:12px;color:var(--text-muted)">${r.date}</div>
+              <div style="font-size:14px;font-weight:600">${r.patient_name}</div>
+              <div style="font-size:12px;color:var(--text-muted)">${r.patient_phone} · ${fmtTime(r.created_at)}</div>
             </div>
             ${badge(r.status)}
           </div>
@@ -378,7 +502,7 @@ function viewDoctorSchedule() {
 }
 
 // ============================================
-// PATIENT VIEWS — citesc din S.cache
+// PATIENT VIEWS — filtrate după patient_phone
 // ============================================
 function viewPatientBook() {
   const slotSection = S.sd ? (() => {
@@ -434,11 +558,13 @@ function viewPatientBook() {
 }
 
 function viewPatientMyAppts() {
+  // Filtru după patient_phone — nu după nume, care poate varia
   const mine = S.cache.appointments
-    .filter(a => a.patient === PAT_NAME)
+    .filter(a => a.patient_phone === S.patient?.phone)
     .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+
   const upcoming = mine.filter(a => a.date >= TODAY && a.status !== 'done');
-  const history  = mine.filter(a => a.date < TODAY  || a.status === 'done');
+  const history  = mine.filter(a => a.date <  TODAY || a.status === 'done');
 
   const row = (a, faded) => `
     <div class="appt-item" style="${faded ? 'opacity:0.55' : ''}">
@@ -489,7 +615,8 @@ function viewPatientSymptoms() {
 }
 
 function viewPatientRx() {
-  const mine = S.cache.prescriptions.filter(r => r.patient === PAT_NAME);
+  // Filtru după patient_phone
+  const mine = S.cache.prescriptions.filter(r => r.patient_phone === S.patient?.phone);
   return `
     ${S.msg ? `<div class="alert-success">${S.msg}</div>` : ''}
     <div class="section-title">Rețetele mele</div>
@@ -500,7 +627,7 @@ function viewPatientRx() {
             <div class="card-row">
               <div style="flex:1">
                 <div style="font-weight:600;font-size:14px">${r.med}</div>
-                <div style="font-size:12px;color:var(--text-muted)">Solicitată: ${r.date}</div>
+                <div style="font-size:12px;color:var(--text-muted)">Solicitată: ${fmtTime(r.created_at)}</div>
               </div>
               ${badge(r.status)}
             </div>
@@ -517,7 +644,7 @@ function viewPatientRx() {
       </div>
       <div class="form-group">
         <label class="form-label">Observații (opțional)</label>
-        <textarea id="rx-note" placeholder="Orice informație relevantă pentru medic..." style="min-height:70px"></textarea>
+        <textarea id="rx-note" placeholder="Orice informație relevantă..." style="min-height:70px"></textarea>
       </div>
       <button class="btn-primary" data-action="submit-rx">Solicită rețetă</button>
     </div>`;
@@ -526,7 +653,6 @@ function viewPatientRx() {
 function viewNotifications(isDoctor) {
   const notifs = S.cache.notifications;
   const unread = notifs.filter(n => !n.read).length;
-
   return `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
       <div class="section-title">Notificări ${unread ? `<span class="badge badge-danger" style="font-size:11px;margin-left:6px">${unread}</span>` : ''}</div>
@@ -566,64 +692,28 @@ const ICONS = {
 };
 
 // ============================================
-// LOGIN PAGE
-// ============================================
-function renderLogin() {
-  return `
-    <div class="login-page">
-      <div style="text-align:center">
-        <div class="login-logo">
-          <svg width="36" height="36" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" viewBox="0 0 24 24">
-            <rect x="3" y="4" width="18" height="18" rx="2"/>
-            <path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4"/>
-          </svg>
-        </div>
-        <h1 style="font-size:24px;font-weight:700;margin-top:16px;margin-bottom:6px">Cabinet Dr. Țăpârdea Ancuța</h1>
-        <p style="font-size:14px;color:var(--text-muted)">Medicină de familie · Craiova</p>
-      </div>
-      <div class="role-grid">
-        <div class="role-card" data-action="login-doctor">
-          <div class="role-icon" style="background:var(--success-bg)">
-            <svg width="26" height="26" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" viewBox="0 0 24 24">
-              <path d="M9 12h6m-3-3v6"/><circle cx="12" cy="12" r="10"/>
-            </svg>
-          </div>
-          <div style="font-size:15px;font-weight:700;margin-bottom:4px">Sunt medic</div>
-          <div style="font-size:12px;color:var(--text-muted)">Gestionează programările</div>
-        </div>
-        <div class="role-card" data-action="login-patient">
-          <div class="role-icon" style="background:var(--info-bg)">
-            <svg width="26" height="26" fill="none" stroke="var(--info-text)" stroke-width="1.5" stroke-linecap="round" viewBox="0 0 24 24">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
-            </svg>
-          </div>
-          <div style="font-size:15px;font-weight:700;margin-bottom:4px">Sunt pacient</div>
-          <div style="font-size:12px;color:var(--text-muted)">Programează consultație</div>
-        </div>
-      </div>
-    </div>`;
-}
-
-// ============================================
-// RENDER PRINCIPAL — async (fetch + draw)
+// RENDER PRINCIPAL
 // ============================================
 async function render() {
   const app = document.getElementById('app');
+
+  // Ecranele de login nu au nevoie de date din Supabase
   if (!S.role) { app.innerHTML = renderLogin(); return; }
+  if (S.role === 'doctor-login')  { app.innerHTML = renderDoctorLogin();  return; }
+  if (S.role === 'patient-login') { app.innerHTML = renderPatientLogin(); return; }
 
   const isDoctor    = S.role === 'doctor';
-  const notifTarget = isDoctor ? 'doctor' : 'patient';
+  const notifTarget = isDoctor ? 'doctor' : S.patient?.phone || 'patient';
 
-  // Fetch toate datele în paralel din Supabase
   showLoading();
+
   const [appointments, symptoms, prescriptions, notifications] = await Promise.all([
     DB.getAppointments(),
     DB.getSymptoms(),
     DB.getPrescriptions(),
-    DB.getNotifications(notifTarget),
+    DB.getNotifications(isDoctor ? 'doctor' : S.patient?.phone),
   ]);
 
-  // Actualizează cache-ul local
   S.cache.appointments  = appointments;
   S.cache.symptoms      = symptoms;
   S.cache.prescriptions = prescriptions;
@@ -664,10 +754,12 @@ async function render() {
     else if (S.tab === 'notifs')       content = viewNotifications(false);
   }
 
+  const userName = isDoctor ? 'Dr. Țăpârdea Ancuța' : S.patient?.name || '';
+
   app.innerHTML = `
     <header class="app-header">
       <div>
-        <div style="font-size:15px;font-weight:700">${isDoctor ? 'Dr. Maria Țăpârdea Ancuța' : PAT_NAME}</div>
+        <div style="font-size:15px;font-weight:700">${userName}</div>
         <div style="font-size:12px;color:var(--text-muted)">Cabinet medicină de familie</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
@@ -685,24 +777,52 @@ async function render() {
 }
 
 // ============================================
-// EVENT HANDLER CENTRAL — async
+// EVENT HANDLER
 // ============================================
 document.getElementById('app').addEventListener('click', async e => {
   const el = e.target.closest('[data-action]');
   if (!el) return;
   const action = el.dataset.action;
-  S.msg = null;
+  S.msg = null; S.err = null;
 
   switch (action) {
 
-    case 'login-doctor':
-      S.role = 'doctor'; S.tab = 'calendar'; S.sd = TODAY; await render(); break;
+    case 'show-doctor-login':
+      S.role = 'doctor-login'; render(); break;
 
-    case 'login-patient':
-      S.role = 'patient'; S.tab = 'book'; S.sd = null; await render(); break;
+    case 'show-patient-login':
+      S.role = 'patient-login'; render(); break;
+
+    case 'back-to-roles':
+      S.role = null; render(); break;
+
+    case 'login-doctor': {
+      const pass = document.getElementById('doc-pass')?.value;
+      if (pass !== DOCTOR_PASSWORD) {
+        S.err = 'Parolă incorectă. Încearcă din nou.'; render(); return;
+      }
+      S.role = 'doctor'; S.tab = 'calendar'; S.sd = TODAY;
+      await render(); break;
+    }
+
+    case 'login-patient': {
+      const name  = document.getElementById('pat-name')?.value?.trim();
+      const phone = document.getElementById('pat-phone')?.value?.trim().replace(/\s+/g,'');
+      if (!name || !phone) {
+        S.err = 'Completați numele și numărul de telefon.'; render(); return;
+      }
+      // Creează sau găsește pacientul în Supabase
+      const pat = await DB.upsertPatient({ name, phone });
+      if (!pat) {
+        S.err = 'Eroare la conectare. Verificați conexiunea.'; render(); return;
+      }
+      S.patient = { name: pat.name, phone: pat.phone };
+      S.role = 'patient'; S.tab = 'book'; S.sd = null;
+      await render(); break;
+    }
 
     case 'logout':
-      S.role = null; S.sd = null; S.bs = null; await render(); break;
+      S.role = null; S.patient = null; S.sd = null; S.bs = null; render(); break;
 
     case 'tab':
       S.tab = el.dataset.tab; await render(); break;
@@ -721,14 +841,14 @@ document.getElementById('app').addEventListener('click', async e => {
       S.bs = el.dataset.slot; await render(); break;
 
     case 'book-confirm': {
-      if (!S.sd || !S.bs) return;
+      if (!S.sd || !S.bs || !S.patient) return;
       const type = document.getElementById('appt-type')?.value || 'Consultație generală';
-      // 1. Salvează programarea în Supabase
-      await DB.insertAppointment({ date: S.sd, time: S.bs, patient: PAT_NAME, type });
-      // 2. Notificare pentru pacient
-      await DB.insertNotification({ target: 'patient', text: `Programare confirmată: ${fmtDate(S.sd)}, ora ${S.bs}` });
-      // 3. Notificare pentru medic
-      await DB.insertNotification({ target: 'doctor',  text: `${PAT_NAME} — programare nouă: ${fmtDate(S.sd)}, ${S.bs}` });
+      await DB.insertAppointment({
+        date: S.sd, time: S.bs,
+        patient_name: S.patient.name, patient_phone: S.patient.phone, type
+      });
+      await DB.insertNotification({ target: 'patient_' + S.patient.phone, text: `Programare confirmată: ${fmtDate(S.sd)}, ora ${S.bs}` });
+      await DB.insertNotification({ target: 'doctor', text: `${S.patient.name} (${S.patient.phone}) — programare nouă: ${fmtDate(S.sd)}, ${S.bs}` });
       S.msg = `✓ Programare confirmată pentru ${fmtDate(S.sd)} la ora ${S.bs}`;
       S.bs = null; S.sd = null; S.tab = 'myappts';
       await render(); break;
@@ -737,50 +857,39 @@ document.getElementById('app').addEventListener('click', async e => {
     case 'submit-sym': {
       const text = document.getElementById('sym-text')?.value?.trim();
       if (!text) { alert('Te rugăm să descrii simptomele.'); return; }
-      // 1. Salvează simptomele în Supabase
-      await DB.insertSymptom({ patient: PAT_NAME, date: TODAY, text });
-      // 2. Notificare pentru medic
-      await DB.insertNotification({ target: 'doctor', text: `${PAT_NAME} a descris simptome noi` });
-      S.msg = '✓ Raportul a fost trimis. Medicul va fi notificat în curând.';
+      await DB.insertSymptom({ patient_name: S.patient.name, patient_phone: S.patient.phone, text });
+      await DB.insertNotification({ target: 'doctor', text: `${S.patient.name} a descris simptome noi` });
+      S.msg = '✓ Raportul a fost trimis. Medicul va fi notificat.';
       await render(); break;
     }
 
     case 'submit-rx': {
       const med = document.getElementById('rx-med')?.value?.trim();
       if (!med) { alert('Te rugăm să introduci numele medicamentului.'); return; }
-      // 1. Salvează cererea de rețetă în Supabase
-      await DB.insertPrescription({ patient: PAT_NAME, date: TODAY, med });
-      // 2. Notificare pentru medic
-      await DB.insertNotification({ target: 'doctor', text: `${PAT_NAME} solicită rețetă — ${med}` });
+      await DB.insertPrescription({ patient_name: S.patient.name, patient_phone: S.patient.phone, med });
+      await DB.insertNotification({ target: 'doctor', text: `${S.patient.name} solicită rețetă — ${med}` });
       S.msg = '✓ Cererea a fost trimisă. Medicul o va procesa în curând.';
       await render(); break;
     }
 
-    case 'mark-sym': {
-      // Actualizează status simptom în Supabase
+    case 'mark-sym':
       await DB.markSymptomReviewed(Number(el.dataset.id));
       await render(); break;
-    }
 
     case 'approve-rx': {
       const id = Number(el.dataset.id);
       const rx = S.cache.prescriptions.find(r => r.id === id);
-      // 1. Actualizează statusul rețetei în Supabase
       await DB.updatePrescriptionStatus(id, 'approved');
-      // 2. Notificare pentru pacient
-      if (rx) await DB.insertNotification({ target: 'patient', text: `Rețetă ${rx.med} a fost aprobată de medic` });
+      if (rx) await DB.insertNotification({ target: 'patient_' + rx.patient_phone, text: `Rețetă ${rx.med} aprobată de medic` });
       await render(); break;
     }
 
-    case 'reject-rx': {
-      // Actualizează statusul rețetei în Supabase
+    case 'reject-rx':
       await DB.updatePrescriptionStatus(Number(el.dataset.id), 'rejected');
       await render(); break;
-    }
 
     case 'read-all': {
-      const target = S.role === 'doctor' ? 'doctor' : 'patient';
-      // Marchează toate notificările ca citite în Supabase
+      const target = S.role === 'doctor' ? 'doctor' : 'patient_' + S.patient?.phone;
       await DB.markAllNotificationsRead(target);
       await render(); break;
     }
@@ -788,51 +897,35 @@ document.getElementById('app').addEventListener('click', async e => {
 });
 
 // ============================================
-// PWA — INSTALL PROMPT
+// PWA
 // ============================================
 let deferredPrompt = null;
-
 window.addEventListener('beforeinstallprompt', e => {
-  e.preventDefault();
-  deferredPrompt = e;
-  const banner = document.getElementById('install-banner');
-  if (banner) banner.style.display = 'flex';
+  e.preventDefault(); deferredPrompt = e;
+  const b = document.getElementById('install-banner');
+  if (b) b.style.display = 'flex';
 });
-
 document.getElementById('install-btn')?.addEventListener('click', async () => {
   if (!deferredPrompt) return;
-  deferredPrompt.prompt();
-  await deferredPrompt.userChoice;
+  deferredPrompt.prompt(); await deferredPrompt.userChoice;
   deferredPrompt = null;
   document.getElementById('install-banner').style.display = 'none';
 });
-
 document.getElementById('install-dismiss')?.addEventListener('click', () => {
   document.getElementById('install-banner').style.display = 'none';
 });
 
-// ============================================
-// SERVICE WORKER
-// ============================================
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then(reg => console.log('[PWA] Service Worker activ:', reg.scope))
-      .catch(err => console.warn('[PWA] SW error:', err));
+    navigator.serviceWorker.register('/sw.js').catch(console.warn);
   });
 }
 
-// ============================================
-// NOTIFICĂRI PUSH
-// ============================================
 async function requestNotificationPermission() {
   if ('Notification' in window && Notification.permission === 'default') {
     await Notification.requestPermission();
   }
 }
 
-// ============================================
-// PORNIRE APLICAȚIE
-// ============================================
 render();
 requestNotificationPermission();
