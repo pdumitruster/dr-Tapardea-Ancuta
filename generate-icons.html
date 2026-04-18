@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head><title>Generare iconițe PWA</title></head>
+<body>
+<p>Descarcă iconițele de mai jos și pune-le în folderul <code>icons/</code></p>
+<canvas id="c192" width="192" height="192" style="border:1px solid #ccc;display:block;margin:8px 0"></canvas>
+<a id="dl192" download="icon-192.png">⬇ Descarcă icon-192.png</a>
+<br><br>
+<canvas id="c512" width="512" height="512" style="border:1px solid #ccc;display:block;margin:8px 0;width:192px;height:192px"></canvas>
+<a id="dl512" download="icon-512.png">⬇ Descarcă icon-512.png</a>
+
+<script>
+function drawIcon(canvas, size) {
+  const ctx = canvas.getContext('2d');
+  const r = size * 0.15;
+
+  // Fundal verde
+  ctx.fillStyle = '#E1F5EE';
+  roundRect(ctx, 0, 0, size, size, r);
+  ctx.fill();
+
+  // Careu calendar
+  ctx.strokeStyle = '#0F6E56';
+  ctx.lineWidth = size * 0.05;
+  ctx.lineCap = 'round';
+
+  const m = size * 0.18;
+  const w = size - m * 2;
+  const h = size - m * 2;
+  const rr = size * 0.08;
+
+  ctx.beginPath();
+  roundRect(ctx, m, m, w, h, rr);
+  ctx.stroke();
+
+  // Linie header calendar
+  ctx.beginPath();
+  ctx.moveTo(m, m + h * 0.28);
+  ctx.lineTo(m + w, m + h * 0.28);
+  ctx.stroke();
+
+  // Cruce (plus medical)
+  const cx = size / 2;
+  const cy = m + h * 0.28 + (h * 0.72) / 2;
+  const a = size * 0.12;
+  ctx.lineWidth = size * 0.055;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - a); ctx.lineTo(cx, cy + a);
+  ctx.moveTo(cx - a, cy); ctx.lineTo(cx + a, cy);
+  ctx.stroke();
+
+  // Linii mici (spiralele calendarului)
+  const lx1 = m + w * 0.3;
+  const lx2 = m + w * 0.7;
+  const ly  = m - size * 0.02;
+  const lh  = size * 0.1;
+  ctx.lineWidth = size * 0.04;
+  ctx.beginPath();
+  ctx.moveTo(lx1, ly); ctx.lineTo(lx1, ly + lh);
+  ctx.moveTo(lx2, ly); ctx.lineTo(lx2, ly + lh);
+  ctx.stroke();
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+const c192 = document.getElementById('c192');
+const c512 = document.getElementById('c512');
+drawIcon(c192, 192);
+drawIcon(c512, 512);
+
+document.getElementById('dl192').href = c192.toDataURL('image/png');
+document.getElementById('dl512').href = c512.toDataURL('image/png');
+</script>
+</body>
+</html>

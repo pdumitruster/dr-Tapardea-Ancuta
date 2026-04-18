@@ -1,0 +1,33 @@
+{
+  "name": "Cabinet Dr. Țăpârdea Ancuța ",
+  "short_name": "Dr. Țăpârdea Ancuța",
+  "description": "Programări online — Medicină de familie",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0F6E56",
+  "orientation": "portrait-primary",
+  "lang": "ro",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["medical", "health"],
+  "shortcuts": [
+    {
+      "name": "Programare nouă",
+      "url": "/?tab=book",
+      "description": "Adaugă o programare rapidă"
+    }
+  ]
+}

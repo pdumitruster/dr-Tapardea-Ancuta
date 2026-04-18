@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+  <!-- PWA meta tags -->
+  <meta name="theme-color" content="#0F6E56">
+  <meta name="description" content="Programări online — Cabinet Dr. Țăpârdea Ancuța, medicină de familie">
+
+  <!-- iOS PWA support -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Dr. Țăpârdea Ancuța">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+
+  <!-- Android PWA -->
+  <link rel="manifest" href="manifest.json">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-192.png">
+
+  <link rel="stylesheet" href="style.css">
+  <title>Cabinet Dr. Țăpârdea Ancuța</title>
+</head>
+<body>
+
+  <!-- Aplicația se randează aici -->
+  <div id="app">
+    <!-- Loading state inițial -->
+    <div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#6b7280;font-family:system-ui">
+      Se încarcă...
+    </div>
+  </div>
+
+  <!-- Banner instalare PWA (apare automat pe Android/Chrome) -->
+  <div id="install-banner">
+    <p>Instalează aplicația pe ecranul principal</p>
+    <button class="btn-primary" id="install-btn" style="width:auto;padding:8px 16px;font-size:13px">Instalează</button>
+    <button class="btn-secondary" id="install-dismiss" style="padding:8px 12px;font-size:13px">✕</button>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
