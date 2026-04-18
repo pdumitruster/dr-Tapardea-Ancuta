@@ -1,7 +1,7 @@
 'use strict';
 
 /* ============================================
-   CABINET DR. IONESCU — Aplicație PWA
+   CABINET DR. Tapardea Ancuta — Aplicație PWA
    Autentificare: pacient (nume+telefon) / medic (parolă)
    Date: Supabase
    ============================================ */
@@ -54,8 +54,16 @@ const DB = {
   async insertAppointment({ date, time, patient_name, patient_phone, type }) {
     const { error } = await sb
       .from('appointments')
-      .insert({ date, time, patient_name, patient_phone, type, status: 'confirmed' });
+      .insert({ date, time, patient_name, patient_phone, type, status: 'pending' });
     if (error) console.error('insert appointment:', error);
+  },
+
+  async updateAppointmentStatus(id, status) {
+    const { error } = await sb
+      .from('appointments')
+      .update({ status })
+      .eq('id', id);
+    if (error) console.error('update appointment:', error);
   },
 
   // ---- SYMPTOMS ----
@@ -434,10 +442,36 @@ function viewDoctorAppts() {
 }
 
 function viewDoctorPatients() {
-  const syms = S.cache.symptoms;
-  const rxs  = S.cache.prescriptions;
+  const syms    = S.cache.symptoms;
+  const rxs     = S.cache.prescriptions;
+  const pending = S.cache.appointments.filter(a => a.status === 'pending')
+    .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
 
   return `
+    ${pending.length ? `
+    <div class="section-title">Programări în așteptare (${pending.length})</div>
+    <div style="margin-top:10px">
+      ${pending.map(a => `
+        <div class="card" style="border-color:var(--warning-bg)">
+          <div class="card-row" style="margin-bottom:8px">
+            <div class="avatar" style="background:var(--warning-bg);color:var(--warning-text)">${initials(a.patient_name)}</div>
+            <div style="flex:1">
+              <div style="font-size:14px;font-weight:600">${a.patient_name}</div>
+              <div style="font-size:12px;color:var(--text-muted)">${a.patient_phone}</div>
+            </div>
+            ${badge(a.status)}
+          </div>
+          <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px">
+            📅 ${fmtDate(a.date)}, ora ${a.time} · ${a.type}
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn-primary" data-action="approve-appt" data-id="${a.id}" data-phone="${a.patient_phone}" data-date="${a.date}" data-time="${a.time}" style="font-size:13px;padding:10px">Confirmă</button>
+            <button class="btn-secondary" data-action="reject-appt" data-id="${a.id}" data-phone="${a.patient_phone}" style="font-size:13px">Respinge</button>
+          </div>
+        </div>`).join('')}
+    </div>
+    <div class="divider"></div>` : ''}
+
     <div class="section-title">Rapoarte simptome (${syms.filter(s => s.status === 'new').length} noi)</div>
     <div style="margin-top:10px">
       ${syms.length ? syms.map(s => `
@@ -847,9 +881,9 @@ document.getElementById('app').addEventListener('click', async e => {
         date: S.sd, time: S.bs,
         patient_name: S.patient.name, patient_phone: S.patient.phone, type
       });
-      await DB.insertNotification({ target: 'patient_' + S.patient.phone, text: `Programare confirmată: ${fmtDate(S.sd)}, ora ${S.bs}` });
-      await DB.insertNotification({ target: 'doctor', text: `${S.patient.name} (${S.patient.phone}) — programare nouă: ${fmtDate(S.sd)}, ${S.bs}` });
-      S.msg = `✓ Programare confirmată pentru ${fmtDate(S.sd)} la ora ${S.bs}`;
+      await DB.insertNotification({ target: 'patient_' + S.patient.phone, text: `Programare trimisă: ${fmtDate(S.sd)}, ora ${S.bs} — în așteptarea confirmării` });
+      await DB.insertNotification({ target: 'doctor', text: `${S.patient.name} (${S.patient.phone}) — programare nouă: ${fmtDate(S.sd)}, ${S.bs} — necesită confirmare` });
+      S.msg = `✓ Cerere trimisă pentru ${fmtDate(S.sd)} la ora ${S.bs} — medicul o va confirma în curând`;
       S.bs = null; S.sd = null; S.tab = 'myappts';
       await render(); break;
     }
@@ -869,6 +903,24 @@ document.getElementById('app').addEventListener('click', async e => {
       await DB.insertPrescription({ patient_name: S.patient.name, patient_phone: S.patient.phone, med });
       await DB.insertNotification({ target: 'doctor', text: `${S.patient.name} solicită rețetă — ${med}` });
       S.msg = '✓ Cererea a fost trimisă. Medicul o va procesa în curând.';
+      await render(); break;
+    }
+
+    case 'approve-appt': {
+      const id    = Number(el.dataset.id);
+      const phone = el.dataset.phone;
+      const date  = el.dataset.date;
+      const time  = el.dataset.time;
+      await DB.updateAppointmentStatus(id, 'confirmed');
+      await DB.insertNotification({ target: 'patient_' + phone, text: `Programarea din ${fmtDate(date)}, ora ${time} a fost confirmată de medic` });
+      await render(); break;
+    }
+
+    case 'reject-appt': {
+      const id    = Number(el.dataset.id);
+      const phone = el.dataset.phone;
+      await DB.updateAppointmentStatus(id, 'rejected');
+      await DB.insertNotification({ target: 'patient_' + phone, text: `Programarea a fost respinsă. Vă rugăm să alegeți altă dată.` });
       await render(); break;
     }
 
