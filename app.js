@@ -2,77 +2,146 @@
 
 /* ============================================
    CABINET DR. Țăpârdea Ancuța — Aplicație PWA
-   Date: localStorage (înlocuiește cu Supabase)
+   Date: Supabase (bază de date în cloud)
    ============================================ */
 
-// ---- DATA LAYER (localStorage → Supabase-ready) ----
+// ---- CONFIGURARE SUPABASE ----
+// !! Înlocuiește cele două valori de mai jos din panoul tău Supabase
+//    Settings → API → Project URL și anon/public key
+const SUPABASE_URL = 'https://dneagmuohcxckpozgtku.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRuZWFnbXVvaGN4Y2twb3pndGt1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MTc4NTcsImV4cCI6MjA5MjA5Mzg1N30.BY7GT7LsKvE1mmaPMXBUHyJPtGCuyLlQ9nYN_kNzRAI';
+
+// Client Supabase (încărcat din CDN în index.html)
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ============================================
+// STRAT DATE — toate operațiunile cu Supabase
+// ============================================
 const DB = {
-  _k: key => 'dr. Țăpârdea Ancuța_' + key,
-  get(k)    { try { return JSON.parse(localStorage.getItem(this._k(k))); } catch { return null; } },
-  set(k, v) { localStorage.setItem(this._k(k), JSON.stringify(v)); return v; },
-  nextId()  { const id = (this.get('_id') || 100) + 1; this.set('_id', id); return id; },
 
-  seed() {
-    if (this.get('_seeded')) return;
-    const T = TODAY;
+  // ---- APPOINTMENTS ----
+  async getAppointments() {
+    const { data, error } = await sb
+      .from('appointments')
+      .select('*')
+      .order('date')
+      .order('time');
+    if (error) { console.error('appointments:', error); return []; }
+    return data;
+  },
 
-    this.set('appointments', [
-      { id: 1, date: '2026-04-20', time: '08:00', patient: 'Maria Popescu',   type: 'consultație', status: 'confirmed' },
-      { id: 2, date: '2026-04-20', time: '09:00', patient: 'Ion Constantin',  type: 'rețetă',       status: 'confirmed' },
-      { id: 3, date: '2026-04-21', time: '13:00', patient: 'Elena Moldovan',  type: 'consultație', status: 'confirmed' },
-      { id: 4, date: '2026-04-22', time: '08:40', patient: 'Gheorghe Stancu', type: 'consultație', status: 'confirmed' },
-      { id: 5, date: '2026-04-17', time: '08:00', patient: 'Ana Dumitrescu',  type: 'rețetă',       status: 'done'      },
-      { id: 6, date: '2026-04-17', time: '09:00', patient: 'Radu Petrescu',   type: 'consultație', status: 'done'      },
-      { id: 7, date: '2026-04-17', time: '10:00', patient: 'Maria Popescu',   type: 'urmărire',    status: 'done'      },
-      { id: 8, date: '2026-04-23', time: '10:00', patient: 'Maria Popescu',   type: 'consultație', status: 'confirmed' },
-      { id: 9, date: '2026-04-24', time: '08:00', patient: 'Ion Constantin',  type: 'consultație', status: 'confirmed' },
-      { id:10, date: '2026-04-28', time: '13:00', patient: 'Gheorghe Stancu', type: 'rețetă',       status: 'confirmed' },
-    ]);
+  async insertAppointment({ date, time, patient, type }) {
+    const { error } = await sb
+      .from('appointments')
+      .insert({ date, time, patient, type, status: 'confirmed' });
+    if (error) console.error('insert appointment:', error);
+  },
 
-    this.set('symptoms', [
-      { id: 1, patient: 'Ion Constantin', date: '2026-04-16', text: 'Durere de cap persistentă, amețeli, greață de 3 zile.', status: 'new' },
-      { id: 2, patient: 'Elena Moldovan', date: '2026-04-15', text: 'Tuse seacă, febră 37.8°C, oboseală pronunțată.',        status: 'reviewed' },
-    ]);
+  // ---- SYMPTOMS ----
+  async getSymptoms() {
+    const { data, error } = await sb
+      .from('symptoms')
+      .select('*')
+      .order('date', { ascending: false });
+    if (error) { console.error('symptoms:', error); return []; }
+    return data;
+  },
 
-    this.set('prescriptions', [
-      { id: 1, patient: 'Maria Popescu',   date: '2026-04-16', med: 'Metformin 500mg', status: 'pending'  },
-      { id: 2, patient: 'Gheorghe Stancu', date: '2026-04-14', med: 'Enalapril 10mg',  status: 'approved' },
-    ]);
+  async insertSymptom({ patient, date, text }) {
+    const { error } = await sb
+      .from('symptoms')
+      .insert({ patient, date, text, status: 'new' });
+    if (error) console.error('insert symptom:', error);
+  },
 
-    this.set('notifs_doctor', [
-      { id: 1, text: 'Ion Constantin a descris simptome noi',           time: 'Azi, 09:15',   read: false },
-      { id: 2, text: 'Maria Popescu solicită rețetă — Metformin 500mg', time: 'Ieri, 14:30',  read: false },
-      { id: 3, text: 'Confirmare: Gheorghe Stancu — 22 apr, 08:40',     time: 'Ieri, 10:00',  read: true  },
-      { id: 4, text: 'Elena Moldovan — consultație efectuată',           time: '15 apr, 16:00',read: true  },
-    ]);
+  async markSymptomReviewed(id) {
+    const { error } = await sb
+      .from('symptoms')
+      .update({ status: 'reviewed' })
+      .eq('id', id);
+    if (error) console.error('mark symptom:', error);
+  },
 
-    this.set('notifs_patient', [
-      { id: 1, text: 'Programarea din 23 apr, 10:00 a fost confirmată', time: 'Azi, 11:00',   read: false },
-      { id: 2, text: 'Rețetă Metformin 500mg — în procesare',           time: 'Ieri, 14:35',  read: false },
-      { id: 3, text: 'Reminder: programare joi, 23 apr la 10:00',       time: '22 apr, 18:00',read: true  },
-    ]);
+  // ---- PRESCRIPTIONS ----
+  async getPrescriptions() {
+    const { data, error } = await sb
+      .from('prescriptions')
+      .select('*')
+      .order('date', { ascending: false });
+    if (error) { console.error('prescriptions:', error); return []; }
+    return data;
+  },
 
-    this.set('_seeded', true);
-  }
+  async insertPrescription({ patient, date, med }) {
+    const { error } = await sb
+      .from('prescriptions')
+      .insert({ patient, date, med, status: 'pending' });
+    if (error) console.error('insert prescription:', error);
+  },
+
+  async updatePrescriptionStatus(id, status) {
+    const { error } = await sb
+      .from('prescriptions')
+      .update({ status })
+      .eq('id', id);
+    if (error) console.error('update prescription:', error);
+  },
+
+  // ---- NOTIFICATIONS ----
+  async getNotifications(target) {
+    // target = 'doctor' sau 'patient'
+    const { data, error } = await sb
+      .from('notifications')
+      .select('*')
+      .eq('target', target)
+      .order('created_at', { ascending: false });
+    if (error) { console.error('notifications:', error); return []; }
+    return data;
+  },
+
+  async insertNotification({ target, text }) {
+    const { error } = await sb
+      .from('notifications')
+      .insert({ target, text, read: false });
+    if (error) console.error('insert notification:', error);
+  },
+
+  async markAllNotificationsRead(target) {
+    const { error } = await sb
+      .from('notifications')
+      .update({ read: true })
+      .eq('target', target)
+      .eq('read', false);
+    if (error) console.error('mark all read:', error);
+  },
 };
 
 // ---- CONSTANTE ----
-const TODAY     = '2026-04-18';
-const PAT_NAME  = 'Maria Popescu';
-const MONTHS    = ['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie'];
-const DAYS_S    = ['Lu','Ma','Mi','Jo','Vi','Sâ','Du'];
-const DAYS_L    = ['Luni','Marți','Miercuri','Joi','Vineri','Sâmbătă','Duminică'];
-const MONTHS_S  = ['ian','feb','mar','apr','mai','iun','iul','aug','sep','oct','nov','dec'];
-const SLOTS     = ['08:00','08:20','08:40','09:00','09:20','09:40','10:00','10:20','10:40','11:00','11:20','11:40','13:00','13:20','13:40','14:00','14:20','14:40','15:00','15:20','15:40'];
+const TODAY    = new Date().toISOString().split('T')[0]; // data reală curentă
+const PAT_NAME = 'Maria Popescu'; // va fi înlocuit cu autentificarea reală
+const MONTHS   = ['Ianuarie','Februarie','Martie','Aprilie','Mai','Iunie','Iulie','August','Septembrie','Octombrie','Noiembrie','Decembrie'];
+const DAYS_S   = ['Lu','Ma','Mi','Jo','Vi','Sâ','Du'];
+const DAYS_L   = ['Luni','Marți','Miercuri','Joi','Vineri','Sâmbătă','Duminică'];
+const MONTHS_S = ['ian','feb','mar','apr','mai','iun','iul','aug','sep','oct','nov','dec'];
+const SLOTS    = ['08:00','08:20','08:40','09:00','09:20','09:40','10:00','10:20','10:40','11:00','11:20','11:40','13:00','13:20','13:40','14:00','14:20','14:40','15:00','15:20','15:40'];
 
 // ---- STATE ----
 const S = {
   role: null,
   tab:  'calendar',
-  my:   { y: 2026, m: 3 },  // aprilie (0-indexed)
-  sd:   null,                // data selectată
-  bs:   null,                // slot selectat
-  msg:  null,                // mesaj succes
+  my:   { y: new Date().getFullYear(), m: new Date().getMonth() },
+  sd:   null,   // data selectată în calendar
+  bs:   null,   // slotul de oră selectat
+  msg:  null,   // mesaj succes temporar
+
+  // Cache local — populat de render() la fiecare apel
+  cache: {
+    appointments:  [],
+    symptoms:      [],
+    prescriptions: [],
+    notifications: [],
+  }
 };
 
 // ---- HELPERS ----
@@ -86,6 +155,18 @@ function fmtDate(s) {
   let w = new Date(y, m - 1, d).getDay();
   w = w === 0 ? 6 : w - 1;
   return `${DAYS_L[w]}, ${d} ${MONTHS_S[m - 1]}`;
+}
+
+function fmtTime(isoString) {
+  // Convertește câmpul created_at din Supabase în text lizibil
+  if (!isoString) return '';
+  const d = new Date(isoString);
+  const today     = new Date();
+  const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+  const hm = d.toLocaleTimeString('ro-RO', { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === today.toDateString())     return `Azi, ${hm}`;
+  if (d.toDateString() === yesterday.toDateString()) return `Ieri, ${hm}`;
+  return `${d.getDate()} ${MONTHS_S[d.getMonth()]}, ${hm}`;
 }
 
 function initials(name) {
@@ -106,6 +187,11 @@ function badge(status) {
   return `<span class="badge ${cls}">${label}</span>`;
 }
 
+function showLoading() {
+  const main = document.querySelector('.page-content');
+  if (main) main.innerHTML = '<div class="empty-state" style="padding:3rem">Se încarcă...</div>';
+}
+
 // ---- CALENDAR COMPONENT ----
 function calNav() {
   const { y, m } = S.my;
@@ -123,9 +209,9 @@ function calGrid(isDoctor) {
   let fd = new Date(y, m, 1).getDay();
   fd = fd === 0 ? 6 : fd - 1;
 
-  const appts   = DB.get('appointments') || [];
+  // Citim din cache — deja fetch-uit de render()
   const hasAppt = new Set(
-    appts
+    S.cache.appointments
       .filter(a => {
         const [ay, am] = a.date.split('-').map(Number);
         return ay === y && am === m + 1 && (isDoctor || a.patient === PAT_NAME);
@@ -141,8 +227,8 @@ function calGrid(isDoctor) {
     const wd  = new Date(y, m, d).getDay();
     const cls = [
       'cal-day',
-      ds === TODAY   ? 'today'    : '',
-      ds === S.sd    ? 'selected' : '',
+      ds === TODAY ? 'today'    : '',
+      ds === S.sd  ? 'selected' : '',
       wd === 0 || wd === 6 ? 'weekend' : ''
     ].filter(Boolean).join(' ');
 
@@ -157,11 +243,12 @@ function calGrid(isDoctor) {
 }
 
 // ============================================
-// DOCTOR VIEWS
+// DOCTOR VIEWS — citesc din S.cache
 // ============================================
 function viewDoctorCalendar() {
-  const appts    = DB.get('appointments') || [];
-  const confirmed = appts.filter(a => a.date.startsWith('2026-04') && a.status === 'confirmed').length;
+  const appts   = S.cache.appointments;
+  const month   = `${S.my.y}-${String(S.my.m + 1).padStart(2,'0')}`;
+  const confirmed = appts.filter(a => a.date.startsWith(month) && a.status === 'confirmed').length;
   const todayCnt  = appts.filter(a => a.date === TODAY).length;
   const future    = appts.filter(a => a.date > TODAY && a.status === 'confirmed').length;
 
@@ -195,8 +282,9 @@ function viewDoctorCalendar() {
 }
 
 function viewDoctorAppts() {
-  const appts    = DB.get('appointments') || [];
-  const upcoming = appts.filter(a => a.date >= TODAY && a.status === 'confirmed')
+  const appts    = S.cache.appointments;
+  const upcoming = appts
+    .filter(a => a.date >= TODAY && a.status === 'confirmed')
     .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
   const done = appts.filter(a => a.status === 'done');
 
@@ -222,13 +310,13 @@ function viewDoctorAppts() {
 }
 
 function viewDoctorPatients() {
-  const syms = DB.get('symptoms')     || [];
-  const rxs  = DB.get('prescriptions') || [];
+  const syms = S.cache.symptoms;
+  const rxs  = S.cache.prescriptions;
 
   return `
     <div class="section-title">Rapoarte simptome (${syms.filter(s => s.status === 'new').length} noi)</div>
     <div style="margin-top:10px">
-      ${syms.map(s => `
+      ${syms.length ? syms.map(s => `
         <div class="card">
           <div class="card-row" style="margin-bottom:10px">
             <div class="avatar" style="background:var(--info-bg);color:var(--info-text)">${initials(s.patient)}</div>
@@ -239,12 +327,15 @@ function viewDoctorPatients() {
             ${badge(s.status)}
           </div>
           <p style="font-size:13px;color:var(--text-muted);line-height:1.5">${s.text}</p>
-          ${s.status === 'new' ? `<button class="btn-secondary" data-action="mark-sym" data-id="${s.id}" style="margin-top:12px;font-size:13px">Marchează revizuit</button>` : ''}
-        </div>`).join('')}
+          ${s.status === 'new'
+            ? `<button class="btn-secondary" data-action="mark-sym" data-id="${s.id}" style="margin-top:12px;font-size:13px">Marchează revizuit</button>`
+            : ''}
+        </div>`).join('')
+      : '<div class="empty-state">Nicio raportare de simptome</div>'}
     </div>
     <div class="section-title" style="margin-top:10px">Cereri rețete</div>
     <div style="margin-top:10px">
-      ${rxs.map(r => `
+      ${rxs.length ? rxs.map(r => `
         <div class="card">
           <div class="card-row" style="margin-bottom:8px">
             <div style="flex:1">
@@ -259,13 +350,14 @@ function viewDoctorPatients() {
               <button class="btn-primary" data-action="approve-rx" data-id="${r.id}" style="font-size:13px;padding:10px">Aprobă</button>
               <button class="btn-secondary" data-action="reject-rx" data-id="${r.id}" style="font-size:13px">Respinge</button>
             </div>` : ''}
-        </div>`).join('')}
+        </div>`).join('')
+      : '<div class="empty-state">Nicio cerere de rețetă</div>'}
     </div>`;
 }
 
 function viewDoctorSchedule() {
-  const working  = ['Luni','Marți','Miercuri','Joi','Vineri'];
-  const weekend  = ['Sâmbătă','Duminică'];
+  const working = ['Luni','Marți','Miercuri','Joi','Vineri'];
+  const weekend = ['Sâmbătă','Duminică'];
   return `
     <div class="section-title">Program de lucru</div>
     <div class="section-sub">Sloturi de 20 minute — 21 consultații disponibile pe zi</div>
@@ -282,14 +374,11 @@ function viewDoctorSchedule() {
           <div style="flex:1;font-size:13px;color:var(--text-muted)">—</div>
           <span class="badge badge-neutral">închis</span>
         </div>`).join('')}
-    </div>
-    <div style="margin-top:16px;padding:13px;background:var(--bg-surface);border-radius:var(--radius-md);font-size:13px;color:var(--text-muted);line-height:1.5">
-      <strong>Pasul următor:</strong> Conectează Supabase pentru a edita programul și a sincroniza în timp real.
     </div>`;
 }
 
 // ============================================
-// PATIENT VIEWS
+// PATIENT VIEWS — citesc din S.cache
 // ============================================
 function viewPatientBook() {
   const slotSection = S.sd ? (() => {
@@ -305,7 +394,7 @@ function viewPatientBook() {
         <div class="empty-state">Data este în trecut</div>
       </div>`;
 
-    const booked  = (DB.get('appointments') || []).filter(a => a.date === S.sd).map(a => a.time);
+    const booked  = S.cache.appointments.filter(a => a.date === S.sd).map(a => a.time);
     const confirm = S.bs && !booked.includes(S.bs) ? `
       <div class="confirm-box">
         <div style="font-size:14px;font-weight:700;margin-bottom:4px">Confirmare programare</div>
@@ -345,8 +434,8 @@ function viewPatientBook() {
 }
 
 function viewPatientMyAppts() {
-  const appts    = DB.get('appointments') || [];
-  const mine     = appts.filter(a => a.patient === PAT_NAME)
+  const mine = S.cache.appointments
+    .filter(a => a.patient === PAT_NAME)
     .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
   const upcoming = mine.filter(a => a.date >= TODAY && a.status !== 'done');
   const history  = mine.filter(a => a.date < TODAY  || a.status === 'done');
@@ -380,10 +469,8 @@ function viewPatientSymptoms() {
     <div class="form-group">
       <label class="form-label">De când aveți simptomele?</label>
       <select id="since">
-        <option>Azi</option>
-        <option>1–2 zile</option>
-        <option>3–7 zile</option>
-        <option>Peste o săptămână</option>
+        <option>Azi</option><option>1–2 zile</option>
+        <option>3–7 zile</option><option>Peste o săptămână</option>
       </select>
     </div>
     <div class="form-group">
@@ -393,19 +480,16 @@ function viewPatientSymptoms() {
     <div class="form-group">
       <label class="form-label">Intensitate simptome</label>
       <select id="severity">
-        <option>1 — Ușoară (deranjant dar gestionabil)</option>
-        <option>2 — Moderată</option>
-        <option selected>3 — Medie</option>
-        <option>4 — Semnificativă (afectează activitățile zilnice)</option>
-        <option>5 — Severă (necesită atenție urgentă)</option>
+        <option>1 — Ușoară</option><option>2 — Moderată</option>
+        <option selected>3 — Medie</option><option>4 — Semnificativă</option>
+        <option>5 — Severă</option>
       </select>
     </div>
     <button class="btn-primary" data-action="submit-sym">Trimite raport medicului</button>`;
 }
 
 function viewPatientRx() {
-  const mine = (DB.get('prescriptions') || []).filter(r => r.patient === PAT_NAME);
-
+  const mine = S.cache.prescriptions.filter(r => r.patient === PAT_NAME);
   return `
     ${S.msg ? `<div class="alert-success">${S.msg}</div>` : ''}
     <div class="section-title">Rețetele mele</div>
@@ -440,8 +524,7 @@ function viewPatientRx() {
 }
 
 function viewNotifications(isDoctor) {
-  const key    = isDoctor ? 'notifs_doctor' : 'notifs_patient';
-  const notifs = DB.get(key) || [];
+  const notifs = S.cache.notifications;
   const unread = notifs.filter(n => !n.read).length;
 
   return `
@@ -455,7 +538,7 @@ function viewNotifications(isDoctor) {
             <div class="notif-dot ${n.read ? 'read' : 'unread'}"></div>
             <div>
               <div style="font-size:14px;line-height:1.4">${n.text}</div>
-              <div style="font-size:12px;color:var(--text-muted);margin-top:3px">${n.time}</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:3px">${fmtTime(n.created_at)}</div>
             </div>
           </div>`).join('')
       : '<div class="empty-state">Nicio notificare</div>'
@@ -463,15 +546,15 @@ function viewNotifications(isDoctor) {
 }
 
 // ============================================
-// ICONS (SVG inline)
+// ICONS
 // ============================================
-const ico = (path, extra='') =>
-  `<div class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="22" height="22" ${extra}>${path}</svg></div>`;
+const ico = path =>
+  `<div class="tab-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="22" height="22">${path}</svg></div>`;
 
 const ICONS = {
   calendar: () => ico('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>'),
   list:     () => ico('<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>'),
-  people:   () => ico('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>'),
+  people:   () => ico('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>'),
   clock:    () => ico('<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>'),
   plus:     () => ico('<path d="M12 5v14M5 12h14"/>'),
   heart:    () => ico('<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>'),
@@ -498,7 +581,6 @@ function renderLogin() {
         <h1 style="font-size:24px;font-weight:700;margin-top:16px;margin-bottom:6px">Cabinet Dr. Țăpârdea Ancuța</h1>
         <p style="font-size:14px;color:var(--text-muted)">Medicină de familie · Craiova</p>
       </div>
-
       <div class="role-grid">
         <div class="role-card" data-action="login-doctor">
           <div class="role-icon" style="background:var(--success-bg)">
@@ -509,7 +591,6 @@ function renderLogin() {
           <div style="font-size:15px;font-weight:700;margin-bottom:4px">Sunt medic</div>
           <div style="font-size:12px;color:var(--text-muted)">Gestionează programările</div>
         </div>
-
         <div class="role-card" data-action="login-patient">
           <div class="role-icon" style="background:var(--info-bg)">
             <svg width="26" height="26" fill="none" stroke="var(--info-text)" stroke-width="1.5" stroke-linecap="round" viewBox="0 0 24 24">
@@ -520,23 +601,35 @@ function renderLogin() {
           <div style="font-size:12px;color:var(--text-muted)">Programează consultație</div>
         </div>
       </div>
-
-      <p style="font-size:12px;color:var(--text-hint);text-align:center;max-width:260px;line-height:1.5">
-        Versiune demo · Datele sunt salvate local pe dispozitiv
-      </p>
     </div>`;
 }
 
 // ============================================
-// RENDER PRINCIPAL
+// RENDER PRINCIPAL — async (fetch + draw)
 // ============================================
-function render() {
+async function render() {
   const app = document.getElementById('app');
   if (!S.role) { app.innerHTML = renderLogin(); return; }
 
   const isDoctor    = S.role === 'doctor';
-  const notifKey    = isDoctor ? 'notifs_doctor' : 'notifs_patient';
-  const unreadCount = (DB.get(notifKey) || []).filter(n => !n.read).length;
+  const notifTarget = isDoctor ? 'doctor' : 'patient';
+
+  // Fetch toate datele în paralel din Supabase
+  showLoading();
+  const [appointments, symptoms, prescriptions, notifications] = await Promise.all([
+    DB.getAppointments(),
+    DB.getSymptoms(),
+    DB.getPrescriptions(),
+    DB.getNotifications(notifTarget),
+  ]);
+
+  // Actualizează cache-ul local
+  S.cache.appointments  = appointments;
+  S.cache.symptoms      = symptoms;
+  S.cache.prescriptions = prescriptions;
+  S.cache.notifications = notifications;
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   const doctorTabs = [
     { id: 'calendar',     label: 'Calendar', icon: ICONS.calendar() },
@@ -547,11 +640,11 @@ function render() {
   ];
 
   const patientTabs = [
-    { id: 'book',    label: 'Programare', icon: ICONS.plus() },
-    { id: 'myappts', label: 'Ale mele',   icon: ICONS.list() },
-    { id: 'symptoms',label: 'Simptome',   icon: ICONS.heart() },
-    { id: 'rx',      label: 'Rețete',     icon: ICONS.rx() },
-    { id: 'notifs',  label: 'Alerte',     icon: ICONS.bell(unreadCount) },
+    { id: 'book',     label: 'Programare', icon: ICONS.plus() },
+    { id: 'myappts',  label: 'Ale mele',   icon: ICONS.list() },
+    { id: 'symptoms', label: 'Simptome',   icon: ICONS.heart() },
+    { id: 'rx',       label: 'Rețete',     icon: ICONS.rx() },
+    { id: 'notifs',   label: 'Alerte',     icon: ICONS.bell(unreadCount) },
   ];
 
   const tabs = isDoctor ? doctorTabs : patientTabs;
@@ -574,7 +667,7 @@ function render() {
   app.innerHTML = `
     <header class="app-header">
       <div>
-        <div style="font-size:15px;font-weight:700">${isDoctor ? 'Dr. Țăpârdea Ancuța' : PAT_NAME}</div>
+        <div style="font-size:15px;font-weight:700">${isDoctor ? 'Dr. Maria Țăpârdea Ancuța' : PAT_NAME}</div>
         <div style="font-size:12px;color:var(--text-muted)">Cabinet medicină de familie</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
@@ -582,126 +675,114 @@ function render() {
         <button class="btn-secondary" data-action="logout" style="font-size:12px;padding:6px 12px">Ieșire</button>
       </div>
     </header>
-
     <main class="page-content">${content}</main>
-
     <nav class="tab-bar">
       ${tabs.map(t => `
         <button class="tab-item ${S.tab === t.id ? 'active' : ''}" data-action="tab" data-tab="${t.id}" aria-label="${t.label}">
-          ${t.icon}
-          <span>${t.label}</span>
+          ${t.icon}<span>${t.label}</span>
         </button>`).join('')}
     </nav>`;
 }
 
 // ============================================
-// EVENT HANDLER CENTRAL
+// EVENT HANDLER CENTRAL — async
 // ============================================
-document.getElementById('app').addEventListener('click', e => {
+document.getElementById('app').addEventListener('click', async e => {
   const el = e.target.closest('[data-action]');
   if (!el) return;
   const action = el.dataset.action;
-  S.msg = null; // șterge mesajul anterior la orice acțiune
+  S.msg = null;
 
   switch (action) {
+
     case 'login-doctor':
-      S.role = 'doctor'; S.tab = 'calendar'; S.sd = TODAY; render(); break;
+      S.role = 'doctor'; S.tab = 'calendar'; S.sd = TODAY; await render(); break;
 
     case 'login-patient':
-      S.role = 'patient'; S.tab = 'book'; S.sd = null; render(); break;
+      S.role = 'patient'; S.tab = 'book'; S.sd = null; await render(); break;
 
     case 'logout':
-      S.role = null; S.sd = null; S.bs = null; render(); break;
+      S.role = null; S.sd = null; S.bs = null; await render(); break;
 
     case 'tab':
-      S.tab = el.dataset.tab; render(); break;
+      S.tab = el.dataset.tab; await render(); break;
 
     case 'prev-month': {
-      let { y, m } = S.my; m--; if (m < 0) { m = 11; y--; } S.my = { y, m }; render(); break;
+      let { y, m } = S.my; m--; if (m < 0) { m = 11; y--; } S.my = { y, m }; await render(); break;
     }
     case 'next-month': {
-      let { y, m } = S.my; m++; if (m > 11) { m = 0; y++; } S.my = { y, m }; render(); break;
+      let { y, m } = S.my; m++; if (m > 11) { m = 0; y++; } S.my = { y, m }; await render(); break;
     }
+
     case 'seldate':
-      S.sd = el.dataset.date; S.bs = null; render(); break;
+      S.sd = el.dataset.date; S.bs = null; await render(); break;
 
     case 'selslot':
-      S.bs = el.dataset.slot; render(); break;
+      S.bs = el.dataset.slot; await render(); break;
 
     case 'book-confirm': {
       if (!S.sd || !S.bs) return;
-      const type  = document.getElementById('appt-type')?.value || 'Consultație generală';
-      const appts = DB.get('appointments') || [];
-      appts.push({ id: DB.nextId(), date: S.sd, time: S.bs, patient: PAT_NAME, type, status: 'confirmed' });
-      DB.set('appointments', appts);
-      // notificare pacient
-      const pN = DB.get('notifs_patient') || [];
-      pN.unshift({ id: DB.nextId(), text: `Programare confirmată: ${fmtDate(S.sd)}, ora ${S.bs}`, time: 'Acum', read: false });
-      DB.set('notifs_patient', pN);
-      // notificare medic
-      const dN = DB.get('notifs_doctor') || [];
-      dN.unshift({ id: DB.nextId(), text: `${PAT_NAME} — programare nouă: ${fmtDate(S.sd)}, ${S.bs}`, time: 'Acum', read: false });
-      DB.set('notifs_doctor', dN);
+      const type = document.getElementById('appt-type')?.value || 'Consultație generală';
+      // 1. Salvează programarea în Supabase
+      await DB.insertAppointment({ date: S.sd, time: S.bs, patient: PAT_NAME, type });
+      // 2. Notificare pentru pacient
+      await DB.insertNotification({ target: 'patient', text: `Programare confirmată: ${fmtDate(S.sd)}, ora ${S.bs}` });
+      // 3. Notificare pentru medic
+      await DB.insertNotification({ target: 'doctor',  text: `${PAT_NAME} — programare nouă: ${fmtDate(S.sd)}, ${S.bs}` });
       S.msg = `✓ Programare confirmată pentru ${fmtDate(S.sd)} la ora ${S.bs}`;
       S.bs = null; S.sd = null; S.tab = 'myappts';
-      render(); break;
+      await render(); break;
     }
+
     case 'submit-sym': {
       const text = document.getElementById('sym-text')?.value?.trim();
       if (!text) { alert('Te rugăm să descrii simptomele.'); return; }
-      const syms = DB.get('symptoms') || [];
-      syms.unshift({ id: DB.nextId(), patient: PAT_NAME, date: TODAY, text, status: 'new' });
-      DB.set('symptoms', syms);
-      const dN = DB.get('notifs_doctor') || [];
-      dN.unshift({ id: DB.nextId(), text: `${PAT_NAME} a descris simptome noi`, time: 'Acum', read: false });
-      DB.set('notifs_doctor', dN);
+      // 1. Salvează simptomele în Supabase
+      await DB.insertSymptom({ patient: PAT_NAME, date: TODAY, text });
+      // 2. Notificare pentru medic
+      await DB.insertNotification({ target: 'doctor', text: `${PAT_NAME} a descris simptome noi` });
       S.msg = '✓ Raportul a fost trimis. Medicul va fi notificat în curând.';
-      render(); break;
+      await render(); break;
     }
+
     case 'submit-rx': {
       const med = document.getElementById('rx-med')?.value?.trim();
       if (!med) { alert('Te rugăm să introduci numele medicamentului.'); return; }
-      const rxs = DB.get('prescriptions') || [];
-      rxs.unshift({ id: DB.nextId(), patient: PAT_NAME, date: TODAY, med, status: 'pending' });
-      DB.set('prescriptions', rxs);
-      const dN = DB.get('notifs_doctor') || [];
-      dN.unshift({ id: DB.nextId(), text: `${PAT_NAME} solicită rețetă — ${med}`, time: 'Acum', read: false });
-      DB.set('notifs_doctor', dN);
+      // 1. Salvează cererea de rețetă în Supabase
+      await DB.insertPrescription({ patient: PAT_NAME, date: TODAY, med });
+      // 2. Notificare pentru medic
+      await DB.insertNotification({ target: 'doctor', text: `${PAT_NAME} solicită rețetă — ${med}` });
       S.msg = '✓ Cererea a fost trimisă. Medicul o va procesa în curând.';
-      render(); break;
+      await render(); break;
     }
+
     case 'mark-sym': {
-      const syms = DB.get('symptoms') || [];
-      const s    = syms.find(x => x.id === Number(el.dataset.id));
-      if (s) s.status = 'reviewed';
-      DB.set('symptoms', syms);
-      render(); break;
+      // Actualizează status simptom în Supabase
+      await DB.markSymptomReviewed(Number(el.dataset.id));
+      await render(); break;
     }
+
     case 'approve-rx': {
-      const rxs = DB.get('prescriptions') || [];
-      const r   = rxs.find(x => x.id === Number(el.dataset.id));
-      if (r) {
-        r.status = 'approved';
-        const pN = DB.get('notifs_patient') || [];
-        pN.unshift({ id: DB.nextId(), text: `Rețetă ${r.med} a fost aprobată de medic`, time: 'Acum', read: false });
-        DB.set('notifs_patient', pN);
-      }
-      DB.set('prescriptions', rxs);
-      render(); break;
+      const id = Number(el.dataset.id);
+      const rx = S.cache.prescriptions.find(r => r.id === id);
+      // 1. Actualizează statusul rețetei în Supabase
+      await DB.updatePrescriptionStatus(id, 'approved');
+      // 2. Notificare pentru pacient
+      if (rx) await DB.insertNotification({ target: 'patient', text: `Rețetă ${rx.med} a fost aprobată de medic` });
+      await render(); break;
     }
+
     case 'reject-rx': {
-      const rxs = DB.get('prescriptions') || [];
-      const r   = rxs.find(x => x.id === Number(el.dataset.id));
-      if (r) r.status = 'rejected';
-      DB.set('prescriptions', rxs);
-      render(); break;
+      // Actualizează statusul rețetei în Supabase
+      await DB.updatePrescriptionStatus(Number(el.dataset.id), 'rejected');
+      await render(); break;
     }
+
     case 'read-all': {
-      const key    = S.role === 'doctor' ? 'notifs_doctor' : 'notifs_patient';
-      const notifs = DB.get(key) || [];
-      notifs.forEach(n => n.read = true);
-      DB.set(key, notifs);
-      render(); break;
+      const target = S.role === 'doctor' ? 'doctor' : 'patient';
+      // Marchează toate notificările ca citite în Supabase
+      await DB.markAllNotificationsRead(target);
+      await render(); break;
     }
   }
 });
@@ -731,7 +812,7 @@ document.getElementById('install-dismiss')?.addEventListener('click', () => {
 });
 
 // ============================================
-// SERVICE WORKER REGISTRATION
+// SERVICE WORKER
 // ============================================
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -742,7 +823,7 @@ if ('serviceWorker' in navigator) {
 }
 
 // ============================================
-// NOTIFICĂRI PUSH — Cerere permisiune
+// NOTIFICĂRI PUSH
 // ============================================
 async function requestNotificationPermission() {
   if ('Notification' in window && Notification.permission === 'default') {
@@ -753,6 +834,5 @@ async function requestNotificationPermission() {
 // ============================================
 // PORNIRE APLICAȚIE
 // ============================================
-DB.seed();
 render();
 requestNotificationPermission();
