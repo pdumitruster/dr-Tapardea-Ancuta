@@ -635,33 +635,83 @@ function viewPatientBook() {
     ${slotSection}`;
 }
 
-function viewPatientMyAppts() {
-  // Filtru după patient_phone — nu după nume, care poate varia
-  const mine = S.cache.appointments
-    .filter(a => a.patient_phone === S.patient?.phone)
+function viewPatientLista() {
+  const phone = S.patient?.phone;
+
+  const appts = S.cache.appointments
+    .filter(a => a.patient_phone === phone)
     .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
 
-  const upcoming = mine.filter(a => a.date >= TODAY && a.status !== 'done');
-  const history  = mine.filter(a => a.date <  TODAY || a.status === 'done');
+  const rxs = S.cache.prescriptions
+    .filter(r => r.patient_phone === phone)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-  const row = (a, faded) => `
+  const syms = S.cache.symptoms
+    .filter(s => s.patient_phone === phone)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  const upcomingAppts = appts.filter(a => a.date >= TODAY && a.status !== 'done' && a.status !== 'rejected');
+  const pastAppts     = appts.filter(a => a.date <  TODAY || a.status === 'done');
+
+  const apptRow = (a, faded) => `
     <div class="appt-item" style="${faded ? 'opacity:0.55' : ''}">
       <div style="min-width:104px">
         <div style="font-size:11px;color:var(--text-muted)">${fmtDate(a.date)}</div>
         <div class="appt-time">${a.time}</div>
       </div>
-      <div style="flex:1"><div class="appt-name">Dr. Țăpârdea Ancuța</div><div class="appt-type">${a.type}</div></div>
+      <div style="flex:1">
+        <div class="appt-name">Dr. Țăpârdea Ancuța</div>
+        <div class="appt-type">${a.type}</div>
+      </div>
       ${badge(a.status)}
     </div>`;
 
   return `
-    <div class="section-title">Viitoare (${upcoming.length})</div>
-    <div class="card" style="margin-top:10px">
-      ${upcoming.length ? upcoming.map(a => row(a, false)).join('') : '<div class="empty-state">Nicio programare viitoare</div>'}
+    ${S.msg ? `<div class="alert-success">${S.msg}</div>` : ''}
+
+    <div class="section-title">Programări viitoare (${upcomingAppts.length})</div>
+    <div class="card" style="margin-top:10px;margin-bottom:4px">
+      ${upcomingAppts.length
+        ? upcomingAppts.map(a => apptRow(a, false)).join('')
+        : '<div class="empty-state">Nicio programare viitoare</div>'}
     </div>
-    <div class="section-title" style="margin-top:10px">Istoricul meu</div>
-    <div class="card" style="margin-top:10px">
-      ${history.length ? history.map(a => row(a, true)).join('') : '<div class="empty-state">Nicio consultație anterioară</div>'}
+
+    ${pastAppts.length ? `
+      <div class="section-title" style="margin-top:14px">Istoricul programărilor</div>
+      <div class="card" style="margin-top:10px;margin-bottom:4px">
+        ${pastAppts.map(a => apptRow(a, true)).join('')}
+      </div>` : ''}
+
+    <div class="divider"></div>
+
+    <div class="section-title">Rețetele mele (${rxs.length})</div>
+    <div style="margin-top:10px;margin-bottom:4px">
+      ${rxs.length ? rxs.map(r => `
+        <div class="card" style="margin-bottom:8px">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <div style="font-weight:600;font-size:14px">${r.med}</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${fmtTime(r.created_at)}</div>
+            </div>
+            ${badge(r.status)}
+          </div>
+        </div>`).join('')
+      : '<div class="empty-state">Nicio rețetă solicitată</div>'}
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section-title">Simptomele mele (${syms.length})</div>
+    <div style="margin-top:10px">
+      ${syms.length ? syms.map(s => `
+        <div class="card" style="margin-bottom:8px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <div style="font-size:12px;color:var(--text-muted)">${fmtTime(s.created_at)}</div>
+            ${badge(s.status)}
+          </div>
+          <p style="font-size:13px;color:var(--text-muted);line-height:1.5">${s.text}</p>
+        </div>`).join('')
+      : '<div class="empty-state">Niciun simptom raportat</div>'}
     </div>`;
 }
 
@@ -815,7 +865,7 @@ async function render() {
 
   const patientTabs = [
     { id: 'book',     label: 'Programare', icon: ICONS.plus() },
-    { id: 'myappts',  label: 'Ale mele',   icon: ICONS.list() },
+    { id: 'lista',    label: 'Lista mea',  icon: ICONS.list() },
     { id: 'symptoms', label: 'Simptome',   icon: ICONS.heart() },
     { id: 'rx',       label: 'Rețete',     icon: ICONS.rx() },
     { id: 'notifs',   label: 'Alerte',     icon: ICONS.bell(unreadCount) },
@@ -832,7 +882,7 @@ async function render() {
     else if (S.tab === 'notifs')       content = viewDoctorSymptoms();
   } else {
     if      (S.tab === 'book')         content = viewPatientBook();
-    else if (S.tab === 'myappts')      content = viewPatientMyAppts();
+    else if (S.tab === 'lista')        content = viewPatientLista();
     else if (S.tab === 'symptoms')     content = viewPatientSymptoms();
     else if (S.tab === 'rx')           content = viewPatientRx();
     else if (S.tab === 'notifs')       content = viewNotifications(false);
@@ -952,7 +1002,7 @@ document.getElementById('app').addEventListener('click', async e => {
       await DB.insertNotification({ target: 'patient_' + S.patient.phone, text: `Programare trimisă: ${fmtDate(S.sd)}, ora ${S.bs} — în așteptarea confirmării` });
       await DB.insertNotification({ target: 'doctor', text: `${S.patient.name} (${S.patient.phone}) — programare nouă: ${fmtDate(S.sd)}, ${S.bs} — necesită confirmare` });
       S.msg = `✓ Cerere trimisă pentru ${fmtDate(S.sd)} la ora ${S.bs} — medicul o va confirma în curând`;
-      S.bs = null; S.sd = null; S.tab = 'myappts';
+      S.bs = null; S.sd = null; S.tab = 'lista';
       await render(); break;
     }
 

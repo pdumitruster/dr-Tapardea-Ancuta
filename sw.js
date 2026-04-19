@@ -1,9 +1,10 @@
 /* ============================================
-   SERVICE WORKER — Cabinet Dr. Ionescu PWA
-   Strategie: Cache-first cu fallback la rețea
+   SERVICE WORKER — Cabinet Dr. Țăpârdea PWA
+   Strategie: Cache-first doar pentru assets statice
+   API Supabase → ÎNTOTDEAUNA rețea directă
    ============================================ */
 
-const CACHE_NAME = 'dr-ionescu-v1.0.2';
+const CACHE_NAME = 'dr-tapardea-v1.0.3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -12,7 +13,6 @@ const ASSETS_TO_CACHE = [
   '/manifest.json'
 ];
 
-/* Instalare — precachează toate asset-urile */
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -21,50 +21,46 @@ self.addEventListener('install', event => {
   );
 });
 
-/* Activare — șterge cache-urile vechi */
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
       .then(keys => Promise.all(
-        keys
-          .filter(key => key !== CACHE_NAME)
-          .map(key => caches.delete(key))
+        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
       ))
       .then(() => self.clients.claim())
   );
 });
 
-/* Fetch — cache-first, fallback la rețea */
 self.addEventListener('fetch', event => {
-  if (event.request.method !== 'GET') return;
+  const url = event.request.url;
 
+  // !! Supabase și orice API extern → NICIODATĂ din cache, întotdeauna rețea
+  if (url.includes('supabase.co') || url.includes('supabase.io') || event.request.method !== 'GET') {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // Assets statice → cache-first cu fallback la rețea
   event.respondWith(
     caches.match(event.request)
       .then(cached => {
         if (cached) return cached;
-        return fetch(event.request)
-          .then(response => {
-            if (!response || response.status !== 200 || response.type === 'opaque') {
-              return response;
-            }
-            const clone = response.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-            return response;
-          })
-          .catch(() => {
-            if (event.request.destination === 'document') {
-              return caches.match('/index.html');
-            }
-          });
+        return fetch(event.request).then(response => {
+          if (!response || response.status !== 200 || response.type === 'opaque') return response;
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          return response;
+        }).catch(() => {
+          if (event.request.destination === 'document') return caches.match('/index.html');
+        });
       })
   );
 });
 
-/* Notificări push */
 self.addEventListener('push', event => {
   const data = event.data?.json() || {};
   event.waitUntil(
-    self.registration.showNotification(data.title || 'Cabinet Dr. Ionescu', {
+    self.registration.showNotification(data.title || 'Cabinet Dr. Țăpârdea', {
       body: data.body || 'Aveți o notificare nouă',
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',
@@ -74,10 +70,7 @@ self.addEventListener('push', event => {
   );
 });
 
-/* Click pe notificare — deschide aplicația */
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  event.waitUntil(
-    clients.openWindow(event.notification.data?.url || '/')
-  );
+  event.waitUntil(clients.openWindow(event.notification.data?.url || '/'));
 });
