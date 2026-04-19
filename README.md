@@ -1,11 +1,11 @@
-# Cabinet Dr. Țăpârdea Ancuța — PWA
+# Cabinet Dr. Ionescu — PWA
 
 Aplicație web progresivă (PWA) pentru gestionarea programărilor unui cabinet de medicină de familie.
 
 ## Structura fișierelor
 
 ```
-dr-Țăpârdea Ancuța-pwa/
+dr-ionescu-pwa/
 ├── index.html          ← Punct de intrare principal
 ├── manifest.json       ← Configurație PWA (nume, iconiță, culori)
 ├── sw.js               ← Service Worker (offline, cache)
@@ -57,8 +57,8 @@ dr-Țăpârdea Ancuța-pwa/
 ```bash
 git init
 git add .
-git commit -m "Cabinet Dr. Țăpârdea Ancuța PWA"
-git remote add origin https://github.com/pdumitruster/dr-Țăpârdea-Ancuța.git
+git commit -m "Cabinet Dr. Ionescu PWA"
+git remote add origin https://github.com/USERUL_TAU/dr-ionescu.git
 git push -u origin main
 ```
 
@@ -66,10 +66,10 @@ git push -u origin main
 1. În Vercel, apasă **"New Project"**
 2. Importă repository-ul de pe GitHub
 3. Apasă **Deploy**
-4. Vercel îți dă un URL gratuit: `https://dr-Țăpârdea Ancuța.vercel.app`
+4. Vercel îți dă un URL gratuit: `https://dr-ionescu.vercel.app`
 
 ### Pasul 5 — Domeniu propriu (opțional)
-1. Cumpără `dr-Țăpârdea Ancuța.ro` de la [rotld.ro](https://www.rotld.ro) (~40 lei/an)
+1. Cumpără `dr-ionescu.ro` de la [rotld.ro](https://www.rotld.ro) (~40 lei/an)
 2. În Vercel → Settings → Domains → adaugă domeniul tău
 
 ---

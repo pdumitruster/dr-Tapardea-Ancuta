@@ -1,14 +1,14 @@
 'use strict';
 
 /* ============================================
-   CABINET DR. Tapardea Ancuta — Aplicație PWA
+   CABINET DR. IONESCU — Aplicație PWA
    Autentificare: pacient (nume+telefon) / medic (parolă)
    Date: Supabase
    ============================================ */
 
-const SUPABASE_URL   = 'https://dneagmuohcxckpozgtku.supabase.co';
-const SUPABASE_KEY   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRuZWFnbXVvaGN4Y2twb3pndGt1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MTc4NTcsImV4cCI6MjA5MjA5Mzg1N30.BY7GT7LsKvE1mmaPMXBUHyJPtGCuyLlQ9nYN_kNzRAI';
-const DOCTOR_PASSWORD = 'ionescu2026'; // ← schimbă cu o parolă reală!
+const SUPABASE_URL   = 'https://PROIECTUL_TAU.supabase.co';
+const SUPABASE_KEY   = 'ANON_KEY_TAU';
+const DOCTOR_PIN = '2026'; // ← schimbă cu un PIN de 4 cifre ales de dr. Țăpârdea
 
 const { createClient } = supabase;
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -154,16 +154,16 @@ const SLOTS    = ['08:00','08:20','08:40','09:00','09:20','09:40','10:00','10:20
 
 // ---- STATE ----
 const S = {
-  role:    null,
-  tab:     'calendar',
-  my:      { y: new Date().getFullYear(), m: new Date().getMonth() },
-  sd:      null,
-  bs:      null,
-  msg:     null,
-  err:     null,
-  loading: false,
-  // Pacientul logat curent
-  patient: null,  // { name, phone }
+  role:      null,
+  tab:       'calendar',
+  my:        { y: new Date().getFullYear(), m: new Date().getMonth() },
+  sd:        null,
+  bs:        null,
+  msg:       null,
+  err:       null,
+  loading:   false,
+  doctorPin: '',      // PIN introdus cifră cu cifră
+  patient:   null,    // { name, phone }
   cache: {
     appointments:  [],
     symptoms:      [],
@@ -310,6 +310,20 @@ function renderLogin() {
 }
 
 function renderDoctorLogin() {
+  const pin = S.doctorPin || '';
+  const dots = Array(4).fill(0).map((_, i) =>
+    `<div style="width:14px;height:14px;border-radius:50%;background:${i < pin.length ? 'var(--primary)' : 'var(--border-strong)'}"></div>`
+  ).join('');
+
+  const keys = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
+  const keypad = keys.map(k => k === ''
+    ? '<div></div>'
+    : `<button data-action="pin-key" data-key="${k}"
+        style="padding:18px;font-size:20px;font-weight:600;background:var(--bg-card);
+        border:0.5px solid var(--border);border-radius:var(--radius-md);
+        font-family:inherit;color:var(--text);cursor:pointer;touch-action:manipulation">${k}</button>`
+  ).join('');
+
   return `
     <div class="login-page">
       <div style="text-align:center">
@@ -322,16 +336,15 @@ function renderDoctorLogin() {
         <p style="font-size:13px;color:var(--text-muted)">Dr. Țăpârdea Ancuța</p>
       </div>
 
-      ${S.err ? `<div style="background:var(--danger-bg);color:var(--danger-text);border-radius:var(--radius-md);padding:11px 14px;font-size:14px">${S.err}</div>` : ''}
+      ${S.err ? `<div style="background:var(--danger-bg);color:var(--danger-text);border-radius:var(--radius-md);padding:11px 14px;font-size:14px;text-align:center">${S.err}</div>` : ''}
 
-      <div style="width:100%;max-width:340px">
-        <div class="form-group">
-          <label class="form-label">Parolă</label>
-          <input type="password" id="doc-pass" placeholder="Introduceți parola" autocomplete="current-password">
-        </div>
-        <button class="btn-primary" data-action="login-doctor">Intră în cont</button>
-        <button class="btn-ghost" data-action="back-to-roles" style="display:block;text-align:center;margin-top:14px">← Înapoi</button>
+      <div style="display:flex;gap:16px;justify-content:center;margin:8px 0">${dots}</div>
+
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:100%;max-width:280px">
+        ${keypad}
       </div>
+
+      <button class="btn-ghost" data-action="back-to-roles" style="margin-top:8px">← Înapoi</button>
     </div>`;
 }
 
@@ -442,75 +455,106 @@ function viewDoctorAppts() {
 }
 
 function viewDoctorPatients() {
-  const syms    = S.cache.symptoms;
-  const rxs     = S.cache.prescriptions;
-  const pending = S.cache.appointments.filter(a => a.status === 'pending')
+  const pendingAppts = S.cache.appointments
+    .filter(a => a.status === 'pending')
     .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
 
-  return `
-    ${pending.length ? `
-    <div class="section-title">Programări în așteptare (${pending.length})</div>
-    <div style="margin-top:10px">
-      ${pending.map(a => `
-        <div class="card" style="border-color:var(--warning-bg)">
-          <div class="card-row" style="margin-bottom:8px">
+  const pendingRxs = S.cache.prescriptions
+    .filter(r => r.status === 'pending')
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  const apptCards = pendingAppts.length
+    ? pendingAppts.map(a => `
+        <div class="card" style="margin-bottom:10px;border-left:3px solid var(--warning-text)">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
             <div class="avatar" style="background:var(--warning-bg);color:var(--warning-text)">${initials(a.patient_name)}</div>
-            <div style="flex:1">
+            <div>
               <div style="font-size:14px;font-weight:600">${a.patient_name}</div>
               <div style="font-size:12px;color:var(--text-muted)">${a.patient_phone}</div>
             </div>
-            ${badge(a.status)}
           </div>
-          <div style="font-size:13px;color:var(--text-muted);margin-bottom:12px">
-            📅 ${fmtDate(a.date)}, ora ${a.time} · ${a.type}
+          <div style="font-size:13px;margin-bottom:12px;padding:8px 10px;background:var(--bg-surface);border-radius:var(--radius-sm)">
+            <strong>${fmtDate(a.date)}</strong>, ora <strong>${a.time}</strong> · ${a.type}
           </div>
           <div style="display:flex;gap:8px">
-            <button class="btn-primary" data-action="approve-appt" data-id="${a.id}" data-phone="${a.patient_phone}" data-date="${a.date}" data-time="${a.time}" style="font-size:13px;padding:10px">Confirmă</button>
-            <button class="btn-secondary" data-action="reject-appt" data-id="${a.id}" data-phone="${a.patient_phone}" style="font-size:13px">Respinge</button>
+            <button style="flex:1;padding:11px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit"
+              data-action="approve-appt"
+              data-id="${a.id}"
+              data-phone="${a.patient_phone}"
+              data-date="${a.date}"
+              data-time="${a.time}">Confirmă</button>
+            <button style="flex:1;padding:11px;background:none;color:var(--danger-text);border:1px solid var(--danger-text);border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit"
+              data-action="reject-appt"
+              data-id="${a.id}"
+              data-phone="${a.patient_phone}"
+              data-date="${a.date}"
+              data-time="${a.time}">Respinge</button>
           </div>
-        </div>`).join('')}
-    </div>
-    <div class="divider"></div>` : ''}
-
-    <div class="section-title">Rapoarte simptome (${syms.filter(s => s.status === 'new').length} noi)</div>
-    <div style="margin-top:10px">
-      ${syms.length ? syms.map(s => `
-        <div class="card">
-          <div class="card-row" style="margin-bottom:10px">
-            <div class="avatar" style="background:var(--info-bg);color:var(--info-text)">${initials(s.patient_name)}</div>
-            <div style="flex:1">
-              <div style="font-size:14px;font-weight:600">${s.patient_name}</div>
-              <div style="font-size:12px;color:var(--text-muted)">${s.patient_phone} · ${fmtTime(s.created_at)}</div>
-            </div>
-            ${badge(s.status)}
-          </div>
-          <p style="font-size:13px;color:var(--text-muted);line-height:1.5">${s.text}</p>
-          ${s.status === 'new'
-            ? `<button class="btn-secondary" data-action="mark-sym" data-id="${s.id}" style="margin-top:12px;font-size:13px">Marchează revizuit</button>`
-            : ''}
         </div>`).join('')
-      : '<div class="empty-state">Nicio raportare de simptome</div>'}
-    </div>
-    <div class="section-title" style="margin-top:10px">Cereri rețete</div>
-    <div style="margin-top:10px">
-      ${rxs.length ? rxs.map(r => `
-        <div class="card">
-          <div class="card-row" style="margin-bottom:8px">
-            <div style="flex:1">
+    : '<div class="empty-state">Nicio programare în așteptare</div>';
+
+  const rxCards = pendingRxs.length
+    ? pendingRxs.map(r => `
+        <div class="card" style="margin-bottom:10px;border-left:3px solid var(--info-text)">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <div class="avatar" style="background:var(--info-bg);color:var(--info-text)">${initials(r.patient_name)}</div>
+            <div>
               <div style="font-size:14px;font-weight:600">${r.patient_name}</div>
               <div style="font-size:12px;color:var(--text-muted)">${r.patient_phone} · ${fmtTime(r.created_at)}</div>
             </div>
-            ${badge(r.status)}
           </div>
-          <p style="font-size:13px;color:var(--text-muted)">Medicament: <strong>${r.med}</strong></p>
-          ${r.status === 'pending' ? `
-            <div style="display:flex;gap:8px;margin-top:12px">
-              <button class="btn-primary" data-action="approve-rx" data-id="${r.id}" style="font-size:13px;padding:10px">Aprobă</button>
-              <button class="btn-secondary" data-action="reject-rx" data-id="${r.id}" style="font-size:13px">Respinge</button>
-            </div>` : ''}
+          <div style="font-size:13px;margin-bottom:12px;padding:8px 10px;background:var(--bg-surface);border-radius:var(--radius-sm)">
+            Medicament: <strong>${r.med}</strong>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button style="flex:1;padding:11px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit"
+              data-action="approve-rx" data-id="${r.id}" data-phone="${r.patient_phone}" data-med="${r.med}">Aprobă</button>
+            <button style="flex:1;padding:11px;background:none;color:var(--danger-text);border:1px solid var(--danger-text);border-radius:var(--radius-sm);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit"
+              data-action="reject-rx" data-id="${r.id}" data-phone="${r.patient_phone}">Respinge</button>
+          </div>
         </div>`).join('')
-      : '<div class="empty-state">Nicio cerere de rețetă</div>'}
+    : '<div class="empty-state">Nicio cerere de rețetă</div>';
+
+  return `
+    <div class="section-title">Programări în așteptare (${pendingAppts.length})</div>
+    <div style="margin-top:10px">${apptCards}</div>
+    <div class="divider"></div>
+    <div class="section-title">Cereri rețete (${pendingRxs.length})</div>
+    <div style="margin-top:10px">${rxCards}</div>`;
+}
+
+// Alerte = DOAR simptome noi raportate de pacienți
+function viewDoctorSymptoms() {
+  const syms = S.cache.symptoms;
+  const nou  = syms.filter(s => s.status === 'new');
+  const rev  = syms.filter(s => s.status === 'reviewed');
+
+  const symCard = (s) => `
+    <div class="card" style="margin-bottom:10px${s.status === 'new' ? ';border-left:3px solid var(--danger-text)' : ''}">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+        <div class="avatar" style="background:var(--info-bg);color:var(--info-text)">${initials(s.patient_name)}</div>
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:600">${s.patient_name}</div>
+          <div style="font-size:12px;color:var(--text-muted)">${s.patient_phone} · ${fmtTime(s.created_at)}</div>
+        </div>
+        ${badge(s.status)}
+      </div>
+      <p style="font-size:13px;color:var(--text-muted);line-height:1.5;padding:8px 10px;background:var(--bg-surface);border-radius:var(--radius-sm)">${s.text}</p>
+      ${s.status === 'new' ? `
+        <button style="margin-top:10px;padding:9px 16px;background:none;border:0.5px solid var(--border-strong);border-radius:var(--radius-sm);font-size:13px;cursor:pointer;font-family:inherit;color:var(--text)"
+          data-action="mark-sym" data-id="${s.id}">Marchează revizuit</button>` : ''}
     </div>`;
+
+  return `
+    <div class="section-title">Simptome noi (${nou.length})</div>
+    <div style="margin-top:10px">
+      ${nou.length ? nou.map(symCard).join('') : '<div class="empty-state">Nicio alertă nouă</div>'}
+    </div>
+    ${rev.length ? `
+      <div class="divider"></div>
+      <div class="section-title" style="color:var(--text-muted)">Revizuite (${rev.length})</div>
+      <div style="margin-top:10px;opacity:0.6">${rev.map(symCard).join('')}</div>` : ''}`;
+}
 }
 
 function viewDoctorSchedule() {
@@ -714,7 +758,10 @@ const ico = path =>
 const ICONS = {
   calendar: () => ico('<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>'),
   list:     () => ico('<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>'),
-  people:   () => ico('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>'),
+  people: (count) => {
+    const dot = count ? `<span class="tab-badge">${count > 9 ? '9+' : count}</span>` : '';
+    return `<div class="tab-icon">${dot}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>`;
+  },
   clock:    () => ico('<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>'),
   plus:     () => ico('<path d="M12 5v14M5 12h14"/>'),
   heart:    () => ico('<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>'),
@@ -753,14 +800,17 @@ async function render() {
   S.cache.prescriptions = prescriptions;
   S.cache.notifications = notifications;
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount  = notifications.filter(n => !n.read).length;
+  const pendingCount = appointments.filter(a => a.status === 'pending').length
+                     + prescriptions.filter(r => r.status === 'pending').length;
+  const newSymCount  = symptoms.filter(s => s.status === 'new').length;
 
   const doctorTabs = [
     { id: 'calendar',     label: 'Calendar', icon: ICONS.calendar() },
     { id: 'appointments', label: 'Program',  icon: ICONS.list() },
-    { id: 'patients',     label: 'Pacienți', icon: ICONS.people() },
+    { id: 'patients',     label: 'Pacienți', icon: ICONS.people(pendingCount) },
     { id: 'schedule',     label: 'Orar',     icon: ICONS.clock() },
-    { id: 'notifs',       label: 'Alerte',   icon: ICONS.bell(unreadCount) },
+    { id: 'notifs',       label: 'Alerte',   icon: ICONS.bell(newSymCount) },
   ];
 
   const patientTabs = [
@@ -779,7 +829,7 @@ async function render() {
     else if (S.tab === 'appointments') content = viewDoctorAppts();
     else if (S.tab === 'patients')     content = viewDoctorPatients();
     else if (S.tab === 'schedule')     content = viewDoctorSchedule();
-    else if (S.tab === 'notifs')       content = viewNotifications(true);
+    else if (S.tab === 'notifs')       content = viewDoctorSymptoms();
   } else {
     if      (S.tab === 'book')         content = viewPatientBook();
     else if (S.tab === 'myappts')      content = viewPatientMyAppts();
@@ -828,16 +878,34 @@ document.getElementById('app').addEventListener('click', async e => {
       S.role = 'patient-login'; render(); break;
 
     case 'back-to-roles':
-      S.role = null; render(); break;
+      S.role = null; S.doctorPin = ''; S.err = null; render(); break;
 
-    case 'login-doctor': {
-      const pass = document.getElementById('doc-pass')?.value;
-      if (pass !== DOCTOR_PASSWORD) {
-        S.err = 'Parolă incorectă. Încearcă din nou.'; render(); return;
+    case 'pin-key': {
+      const key = el.dataset.key;
+      if (!S.doctorPin) S.doctorPin = '';
+      if (key === '⌫') {
+        S.doctorPin = S.doctorPin.slice(0, -1);
+        S.err = null;
+        render();
+      } else if (S.doctorPin.length < 4) {
+        S.doctorPin += key;
+        if (S.doctorPin.length === 4) {
+          if (S.doctorPin === DOCTOR_PIN) {
+            S.role = 'doctor'; S.tab = 'calendar'; S.sd = TODAY; S.doctorPin = '';
+            await render();
+          } else {
+            S.err = 'PIN incorect. Încearcă din nou.';
+            S.doctorPin = '';
+            render();
+          }
+        } else {
+          render();
+        }
       }
-      S.role = 'doctor'; S.tab = 'calendar'; S.sd = TODAY;
-      await render(); break;
+      break;
     }
+
+    case 'login-doctor': break; // înlocuit cu pin-key
 
     case 'login-patient': {
       const name  = document.getElementById('pat-name')?.value?.trim();
@@ -929,16 +997,21 @@ document.getElementById('app').addEventListener('click', async e => {
       await render(); break;
 
     case 'approve-rx': {
-      const id = Number(el.dataset.id);
-      const rx = S.cache.prescriptions.find(r => r.id === id);
+      const id    = Number(el.dataset.id);
+      const phone = el.dataset.phone;
+      const med   = el.dataset.med || S.cache.prescriptions.find(r => r.id === id)?.med || '';
       await DB.updatePrescriptionStatus(id, 'approved');
-      if (rx) await DB.insertNotification({ target: 'patient_' + rx.patient_phone, text: `Rețetă ${rx.med} aprobată de medic` });
+      if (phone) await DB.insertNotification({ target: 'patient_' + phone, text: `Rețetă ${med} aprobată de Dr. Țăpârdea` });
       await render(); break;
     }
 
-    case 'reject-rx':
-      await DB.updatePrescriptionStatus(Number(el.dataset.id), 'rejected');
+    case 'reject-rx': {
+      const id    = Number(el.dataset.id);
+      const phone = el.dataset.phone;
+      await DB.updatePrescriptionStatus(id, 'rejected');
+      if (phone) await DB.insertNotification({ target: 'patient_' + phone, text: `Cererea de rețetă a fost respinsă. Contactați cabinetul.` });
       await render(); break;
+    }
 
     case 'read-all': {
       const target = S.role === 'doctor' ? 'doctor' : 'patient_' + S.patient?.phone;
