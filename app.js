@@ -1,13 +1,13 @@
 'use strict';
 
 /* ============================================
-   CABINET DR. IONESCU — Aplicație PWA
+   CABINET DR. Țăpârdea — Aplicație PWA
    Autentificare: pacient (nume+telefon) / medic (parolă)
    Date: Supabase
    ============================================ */
 
-const SUPABASE_URL   = 'https://dneagmuohcxckpozgtku.supabase.co';
-const SUPABASE_KEY   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRuZWFnbXVvaGN4Y2twb3pndGt1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY1MTc4NTcsImV4cCI6MjA5MjA5Mzg1N30.BY7GT7LsKvE1mmaPMXBUHyJPtGCuyLlQ9nYN_kNzRAI';
+const SUPABASE_URL   = 'https://PROIECTUL_TAU.supabase.co';
+const SUPABASE_KEY   = 'ANON_KEY_TAU';
 const DOCTOR_PIN = '2026'; // ← schimbă cu un PIN de 4 cifre ales de dr. Țăpârdea
 
 const { createClient } = supabase;
@@ -555,7 +555,7 @@ function viewDoctorSymptoms() {
       <div class="section-title" style="color:var(--text-muted)">Revizuite (${rev.length})</div>
       <div style="margin-top:10px;opacity:0.6">${rev.map(symCard).join('')}</div>` : ''}`;
 }
-}
+
 
 function viewDoctorSchedule() {
   const working = ['Luni','Marți','Miercuri','Joi','Vineri'];
